@@ -1,0 +1,6 @@
+Flask
+Werkzeug
+pandas
+requests
+numpy
+setuptools 

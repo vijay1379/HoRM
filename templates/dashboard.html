@@ -1,0 +1,3732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Employee Attendance Analyzer</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js Annotation Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
+    <!-- Plotly.js for box plots -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        .risk-indicators {
+            padding: 10px 0;
+        }
+        .risk-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 12px;
+            border-radius: 10px;
+            transition: transform 0.2s ease;
+            min-height: 70px;
+        }
+        .risk-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .high-risk {
+            background: linear-gradient(135deg, #ffebee, #ffcdd2);
+            border-left: 4px solid #f44336;
+        }
+        .medium-risk {
+            background: linear-gradient(135deg, #fff8e1, #ffecb3);
+            border-left: 4px solid #ff9800;
+        }
+        .low-risk {
+            background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
+            border-left: 4px solid #4caf50;
+        }
+        .risk-icon {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        .high-risk .risk-icon {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+        }
+        .medium-risk .risk-icon {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ff9800;
+        }
+        .low-risk .risk-icon {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+        .risk-info {
+            flex-grow: 1;
+        }
+        .risk-info h6 {
+            margin-bottom: 3px;
+            font-weight: 600;
+            color: #333;
+            font-size: 0.95em;
+        }
+        .risk-count {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 3px;
+            color: #0d47a1;
+        }
+        .risk-info small {
+            color: #666;
+            font-size: 0.8em;
+            line-height: 1.2;
+        }
+        .cluster-explanations {
+            border-top: 2px solid #e0e0e0;
+            padding-top: 15px;
+            margin-top: 10px;
+            background: #fafafa;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .cluster-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .cluster-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid transparent;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .cluster-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 12px;
+            flex-shrink: 0;
+            border: 2px solid white;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+        }
+        .cluster-desc {
+            flex-grow: 1;
+        }
+        .cluster-desc strong {
+            display: block;
+            font-size: 0.9em;
+            color: #2c3e50;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        .cluster-desc small {
+            font-size: 0.78em;
+            color: #555;
+            line-height: 1.3;
+            display: block;
+        }
+        .cluster-item {
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            border-radius: 6px;
+            padding: 8px 6px;
+        }
+        .cluster-item:hover {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+        .cluster-insights {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 8px;
+            padding: 12px;
+            border-left: 4px solid #28a745;
+        }
+        .insight-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            color: #495057;
+            font-size: 0.9em;
+        }
+        .insight-list {
+            margin: 0;
+            padding-left: 20px;
+            list-style: none;
+        }
+        .insight-list li {
+            font-size: 0.8em;
+            color: #495057;
+            margin-bottom: 4px;
+            position: relative;
+        }
+        .insight-list li:before {
+            content: "•";
+            color: #28a745;
+            font-weight: bold;
+            position: absolute;
+            left: -12px;
+        }
+        .insight-list strong {
+            color: #0d47a1;
+        }
+        .interactive-risk {
+            cursor: pointer;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .interactive-risk:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        }
+        .risk-expand {
+            margin-left: auto;
+            color: #666;
+            transition: transform 0.3s ease;
+        }
+        .interactive-risk:hover .risk-expand {
+            transform: translateX(3px);
+        }
+        .employee-dropdown-section {
+            margin-top: 15px;
+            border-top: 2px solid #e0e0e0;
+            padding-top: 15px;
+            animation: slideDown 0.3s ease-out;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .dropdown-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 8px;
+            border-left: 4px solid #0d47a1;
+        }
+        .dropdown-header h6 {
+            margin: 0;
+            color: #0d47a1;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+        .employee-list-container {
+            background: #fafafa;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        .employee-simple-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+        }
+        .employee-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .employee-item:hover {
+            background: #e3f2fd;
+            border-color: #1976d2;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .employee-basic-info {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+        .employee-id {
+            font-weight: bold;
+            color: #0d47a1;
+            font-size: 0.85em;
+            margin-bottom: 2px;
+        }
+        .employee-name {
+            color: #495057;
+            font-size: 0.8em;
+        }
+        .view-employee-btn {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            transition: background-color 0.2s ease;
+            cursor: pointer;
+        }
+        .view-employee-btn:hover {
+            background: #1565c0;
+        }
+        .risk-preview {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+        .preview-content strong {
+            display: block;
+            color: #0d47a1;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+        .preview-employees {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .preview-employee {
+            background: #e3f2fd;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            color: #1565c0;
+        }
+        
+        /* Risk Table Styles */
+        #employeeRiskTable {
+            animation: slideInDown 0.3s ease-out;
+        }
+        
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .risk-badge {
+            font-size: 0.75em;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+        
+        .risk-high {
+            background: linear-gradient(135deg, #ffebee, #ffcdd2);
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+        
+        .risk-medium {
+            background: linear-gradient(135deg, #fff8e1, #ffecb3);
+            color: #ef6c00;
+            border: 1px solid #ffecb3;
+        }
+        
+        .risk-low {
+            background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+        
+        .employee-row {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .employee-row:hover {
+            background: #f8f9fa;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .view-btn {
+            transition: all 0.2s ease;
+        }
+        
+        .view-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .avatar-circle {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8em;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        
+        /* Pagination Styles */
+        #employeePagination .page-link {
+            color: #0d47a1;
+            border-color: #dee2e6;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+        }
+        
+        #employeePagination .page-item.active .page-link {
+            background-color: #0d47a1;
+            border-color: #0d47a1;
+            color: white;
+        }
+        
+        #employeePagination .page-link:hover {
+            background-color: #e3f2fd;
+            border-color: #90caf9;
+            color: #0d47a1;
+        }
+        
+        #employeePagination .page-item.disabled .page-link {
+            color: #6c757d;
+            background-color: #fff;
+        }
+        
+        .pagination-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .pagination-info small {
+            color: #6c757d;
+        }
+        
+        /* Filter Section Styles */
+        .filter-section {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        
+        .filter-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            color: #0d47a1;
+        }
+        
+        .filter-header h5 {
+            margin: 0;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+        
+        .filter-header i {
+            font-size: 1.2em;
+        }
+        
+        .filter-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: end;
+        }
+        
+        .filter-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .filter-group label {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 8px;
+            display: block;
+            font-size: 0.9em;
+        }
+        
+        .filter-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            background: white;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+        
+        .filter-group select:focus {
+            outline: none;
+            border-color: #1976d2;
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+        }
+        
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            align-items: end;
+        }
+        
+        .filter-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .filter-btn-primary {
+            background: linear-gradient(135deg, #1976d2, #1565c0);
+            color: white;
+        }
+        
+        .filter-btn-primary:hover {
+            background: linear-gradient(135deg, #1565c0, #0d47a1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(25, 118, 210, 0.3);
+        }
+        
+        .filter-btn-secondary {
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 2px solid #e0e0e0;
+        }
+        
+        .filter-btn-secondary:hover {
+            background: #e9ecef;
+            color: #495057;
+            border-color: #dee2e6;
+        }
+        
+        .filter-status {
+            background: #e3f2fd;
+            border: 1px solid #90caf9;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 15px;
+            font-size: 0.85em;
+            color: #0d47a1;
+        }
+        
+        .filter-status i {
+            margin-right: 8px;
+        }
+        
+        .active-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .filter-tag {
+            background: #1976d2;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 0.8em;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .filter-tag .remove-filter {
+            cursor: pointer;
+            font-weight: bold;
+            opacity: 0.8;
+        }
+        
+        .filter-tag .remove-filter:hover {
+            opacity: 1;
+        }
+        
+        @media (max-width: 768px) {
+            .filter-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .filter-group {
+                min-width: 100%;
+            }
+            
+            .filter-actions {
+                justify-content: center;
+            }
+        }
+        
+        /* Equal height cards for analytics section */
+        .analytics-row .col-md-4 {
+            display: flex;
+        }
+        
+        .analytics-row .card {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .analytics-row .card-body {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Ensure canvas containers have consistent sizing */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            flex-grow: 1;
+        }
+        
+        /* Better spacing for cluster explanations */
+        .cluster-explanations {
+            background: #fafafa;
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: 8px;
+        }
+        
+        .cluster-item {
+            margin-bottom: 5px;
+            padding: 6px 8px;
+        }
+        
+        .cluster-insights {
+            margin-top: 6px;
+            padding: 8px;
+        }
+        
+        .insight-list li {
+            font-size: 0.75em;
+            margin-bottom: 2px;
+        }
+        
+        /* Efficiency Rankings Styles */
+        .efficiency-section {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            height: 100%;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .efficiency-section h6 {
+            font-weight: 600;
+            font-size: 1em;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .efficiency-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .efficiency-item {
+            display: flex;
+            align-items: center;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border-left: 4px solid transparent;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .efficiency-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .efficiency-item.top-performer {
+            border-left-color: #28a745;
+            background: linear-gradient(135deg, #fff, #f8fff9);
+        }
+        
+        .efficiency-item.top-performer:hover {
+            background: linear-gradient(135deg, #f8fff9, #e8f5e8);
+        }
+        
+        .efficiency-item.needs-support {
+            border-left-color: #ffc107;
+            background: linear-gradient(135deg, #fff, #fffbf0);
+        }
+        
+        .efficiency-item.needs-support:hover {
+            background: linear-gradient(135deg, #fffbf0, #fff3cd);
+        }
+        
+        .efficiency-rank {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9em;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        
+        .efficiency-rank.rank-top {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+        }
+        
+        .efficiency-rank.rank-bottom {
+            background: linear-gradient(135deg, #ffc107, #fd7e14);
+            color: white;
+        }
+        
+        .efficiency-info {
+            flex-grow: 1;
+        }
+        
+        .efficiency-info .employee-id {
+            font-weight: 600;
+            color: #0d47a1;
+            font-size: 0.9em;
+            margin-bottom: 2px;
+        }
+        
+        .efficiency-info .employee-name {
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-bottom: 4px;
+        }
+        
+        .efficiency-score {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .efficiency-score .score-value {
+            font-weight: bold;
+            font-size: 1.1em;
+            padding: 4px 8px;
+            border-radius: 6px;
+            min-width: 50px;
+            text-align: center;
+        }
+        
+        .efficiency-score .score-top {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            color: #155724;
+        }
+        
+        .efficiency-score .score-bottom {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            color: #856404;
+        }
+        
+        .efficiency-score .score-label {
+            font-size: 0.75em;
+            color: #6c757d;
+        }
+        
+        @media (max-width: 768px) {
+            .efficiency-section {
+                margin-bottom: 20px;
+            }
+            
+            .efficiency-item {
+                padding: 10px 12px;
+            }
+            
+            .efficiency-rank {
+                width: 30px;
+                height: 30px;
+                font-size: 0.8em;
+                margin-right: 12px;
+            }
+        }
+    </style>
+</head>
+<body class="dashboard-page">
+    <!-- Top Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top shadow-sm">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand fw-bold text-primary" href="index.html">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Attendance Analyzer" class="logo-image me-2">
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="topNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link active" href="dashboard.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="employee-view.html">Employee View</a></li>
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item d-flex align-items-center">
+                        <span class="nav-link me-2">
+                            <i class="fas fa-user-circle"></i> Admin
+                        </span>
+                        <a class="nav-link" href="/logout" title="Logout">
+                            <i class="fas fa-sign-out-alt"></i>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid content-offset">
+        <!-- Dashboard Content -->
+        <div class="dashboard-content p-4">
+                <!-- Filter Section -->
+                <div class="filter-section">
+                    <div class="filter-header">
+                        <i class="fas fa-filter"></i>
+                        <h5>Dashboard Filters</h5>
+                    </div>
+                    <div class="filter-controls">
+                        <div class="filter-group">
+                            <label for="designationFilter">
+                                <i class="fas fa-user-tie"></i> Filter by Designation
+                            </label>
+                            <select id="designationFilter" class="form-select">
+                                <option value="">All Designations</option>
+                                <!-- Options will be populated dynamically from the dataset -->
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="accountCodeFilter">
+                                <i class="fas fa-code"></i> Filter by Account Code
+                            </label>
+                            <select id="accountCodeFilter" class="form-select">
+                                <option value="">All Account Codes</option>
+                                <!-- Options will be populated dynamically from the dataset -->
+                            </select>
+                        </div>
+                        <div class="filter-actions">
+                            <button class="filter-btn filter-btn-primary" onclick="applyFilters()">
+                                <i class="fas fa-search"></i> Apply Filters
+                            </button>
+                            <button class="filter-btn filter-btn-secondary" onclick="clearFilters()">
+                                <i class="fas fa-times"></i> Clear All
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Filter Status Display -->
+                    <div id="filterStatus" class="filter-status" style="display: none;">
+                        <i class="fas fa-info-circle"></i>
+                        <span id="filterStatusText">No filters applied</span>
+                        <div class="active-filters" id="activeFilters"></div>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-card-info">
+                                <h6>Total Employees</h6>
+                                <h3 id="totalEmployeesCount">Loading...</h3>
+                            </div>
+                            <div class="stat-card-icon">
+                                <i class="fas fa-users"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-card-info">
+                                <h6>Average Attendance</h6>
+                                <h3 id="avgAttendanceRate">Loading...</h3>
+                            </div>
+                            <div class="stat-card-icon">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-card-info">
+                                <h6>Efficiency Rate</h6>
+                                <h3 id="avgEfficiencyRate">Loading...</h3>
+                            </div>
+                            <div class="stat-card-icon">
+                                <i class="fas fa-tachometer-alt"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-card-info">
+                                <h6>Burnout Risk</h6>
+                                <h3 id="burnoutRiskRate">Loading...</h3>
+                            </div>
+                            <div class="stat-card-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Employee Overview Section -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h4 class="card-title mb-0">Employee Performance Overview</h4>
+                                <p class="card-subtitle text-muted mt-1">Comprehensive analysis of employee productivity, attendance, and behavioral patterns across the organization</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Metrics Row -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">Efficiency Distribution</h5>
+                                <p class="card-subtitle text-muted">Employee efficiency levels across the organization</p>
+                            </div>
+                            <div class="card-body" style="height: 350px;">
+                                <canvas id="efficiencyChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">Attendance vs Efficiency</h5>
+                                <p class="card-subtitle text-muted">Performance categories and outlier analysis</p>
+                            </div>
+                            <div class="card-body" style="height: 350px;">
+                                <canvas id="correlationChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Department & Behavior Analysis Row -->
+                <div class="row g-4 mb-4 analytics-row">
+                    <div class="col-md-4 d-flex">
+                        <div class="card w-100">
+                            <div class="card-header">
+                                <h5 class="card-title">Designation Performance</h5>
+                                <p class="card-subtitle text-muted">Average efficiency by designation</p>
+                            </div>
+                            <div class="card-body d-flex align-items-center justify-content-center" style="height: 400px;">
+                                <div style="width: 100%; height: 320px;">
+                                    <canvas id="departmentChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 d-flex">
+                        <div class="card w-100">
+                            <div class="card-header">
+                                <h5 class="card-title">Behavior Clusters</h5>
+                                <p class="card-subtitle text-muted">Employee behavioral patterns based on work habits and performance</p>
+                            </div>
+                            <div class="card-body" style="height: 400px; overflow-y: auto;">
+                                <div style="height: 180px; margin-bottom: 15px;">
+                                    <canvas id="clusterChart"></canvas>
+                                </div>
+                                <div class="cluster-explanations">
+                                    <div class="cluster-legend">
+                                        <div class="cluster-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Low-maintenance employees who deliver consistent results. Ideal for routine tasks and long-term projects.">
+                                            <span class="cluster-color" style="background-color: #4caf50;"></span>
+                                            <div class="cluster-desc">
+                                                <strong>Consistent Performer (45%)</strong>
+                                                <small>✓ Regular attendance ✓ Steady productivity ✓ Reliable output</small>
+                                            </div>
+                                        </div>
+                                        <div class="cluster-item" data-bs-toggle="tooltip" data-bs-placement="top" title="High performers at risk of burnout. Monitor workload and encourage work-life balance.">
+                                            <span class="cluster-color" style="background-color: #2196f3;"></span>
+                                            <div class="cluster-desc">
+                                                <strong>Silent Overworker (28%)</strong>
+                                                <small>⚠️ Long hours ✓ High output ⚠️ Burnout risk</small>
+                                            </div>
+                                        </div>
+                                        <div class="cluster-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Employees who peak in afternoon. Consider flexible schedules or morning support programs.">
+                                            <span class="cluster-color" style="background-color: #ff9800;"></span>
+                                            <div class="cluster-desc">
+                                                <strong>Late Starter (18%)</strong>
+                                                <small>📈 Afternoon peak 🕐 Morning struggles ⚡ Flexible schedule needed</small>
+                                            </div>
+                                        </div>
+                                        <div class="cluster-item" data-bs-toggle="tooltip" data-bs-placement="top" title="Requires immediate attention. May need coaching, training, or performance improvement plans.">
+                                            <span class="cluster-color" style="background-color: #f44336;"></span>
+                                            <div class="cluster-desc">
+                                                <strong>At Risk (9%)</strong>
+                                                <small>🚨 Irregular patterns ❌ Low efficiency 📞 Needs intervention</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 d-flex">
+                        <div class="card w-100">
+                            <div class="card-header">
+                                <h5 class="card-title">Work Hours Distribution</h5>
+                                <p class="card-subtitle text-muted">Average daily work hours breakdown</p>
+                            </div>
+                            <div class="card-body d-flex align-items-center justify-content-center" style="height: 400px;">
+                                <div style="width: 100%; height: 320px;">
+                                    <canvas id="workHoursChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trends and Risk Analysis Row -->
+                <div class="row g-4 mb-4">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">Monthly Attendance Trends</h5>
+                                <p class="card-subtitle text-muted">Company-wide attendance patterns over the last 12 months</p>
+                            </div>
+                            <div class="card-body" style="height: 400px;">
+                                <canvas id="attendanceChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">Employee Risk Assessment</h5>
+                                <p class="card-subtitle text-muted">Employees requiring attention</p>
+                            </div>
+                            <div class="card-body" style="height: 450px; overflow-y: auto;">
+                                <div class="risk-indicators" style="padding: 10px 0;">
+                                    <div class="risk-item high-risk interactive-risk" data-risk-type="high" onclick="showRiskEmployees('high')" style="margin-bottom: 12px;">
+                                        <div class="risk-icon">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                        </div>
+                                        <div class="risk-info">
+                                            <h6>High Risk</h6>
+                                            <p class="risk-count">23 employees</p>
+                                            <small>Low attendance & efficiency - Click to view employees</small>
+                                        </div>
+                                        <div class="risk-expand">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="risk-item medium-risk interactive-risk" data-risk-type="medium" onclick="showRiskEmployees('medium')" style="margin-bottom: 12px;">
+                                        <div class="risk-icon">
+                                            <i class="fas fa-exclamation-circle"></i>
+                                        </div>
+                                        <div class="risk-info">
+                                            <h6>Medium Risk</h6>
+                                            <p class="risk-count">127 employees</p>
+                                            <small>Declining performance - Click to view employees</small>
+                                        </div>
+                                        <div class="risk-expand">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="risk-item low-risk interactive-risk" data-risk-type="low" onclick="showRiskEmployees('low')" style="margin-bottom: 12px;">
+                                        <div class="risk-icon">
+                                            <i class="fas fa-check-circle"></i>
+                                        </div>
+                                        <div class="risk-info">
+                                            <h6>Performing Well</h6>
+                                            <p class="risk-count">1,104 employees</p>
+                                            <small>Consistent performance - Click to view employees</small>
+                                        </div>
+                                        <div class="risk-expand">
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Employee Dropdown Lists -->
+                                <div id="employeeDropdown" class="employee-dropdown-section" style="display: none;">
+                                    <div class="dropdown-header">
+                                        <h6 id="dropdownTitle">Employee List</h6>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="hideEmployeeDropdown()">
+                                            <i class="fas fa-chevron-up"></i>
+                                        </button>
+                                    </div>
+                                    <div class="employee-list-container">
+                                        <div id="employeeDropdownList" class="employee-simple-list">
+                                            <!-- Employee list will be populated here -->
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Hover Preview -->
+                                <div id="riskPreview" class="risk-preview" style="display: none;">
+                                    <div class="preview-content">
+                                        <strong id="previewTitle">High Risk Preview</strong>
+                                        <div id="previewEmployees" class="preview-employees">
+                                            <!-- Preview employees will be shown here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shift Patterns Analysis Row -->
+                <div class="row g-4 mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title">
+                                    <i class="fas fa-clock me-2 text-primary"></i>
+                                    Shift Patterns Analysis
+                                </h5>
+                                <p class="card-subtitle text-muted">Distribution of check-in and check-out times by designation</p>
+                            </div>
+                            <div class="card-body" style="height: 550px;">
+                                <div id="shiftPatternsChart" style="height: 100%; width: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+
+                <!-- Top & Bottom Efficiency Performance -->
+                <div class="card">
+                    <div class="card-header d-flex align-items-center">
+                        <i class="fas fa-chart-line text-primary me-2"></i>
+                        <h5 class="card-title mb-0">Employee Efficiency Rankings</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Top 5 Efficient Employees -->
+                            <div class="col-md-6">
+                                <div class="efficiency-section">
+                                    <h6 class="text-success mb-3">
+                                        <i class="fas fa-trophy me-2"></i>Top 5 Most Efficient
+                                    </h6>
+                                    <div id="topEfficiencyList" class="efficiency-list">
+                                        <div class="text-center py-3">
+                                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <p class="mt-2 text-muted">Loading top performers...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Bottom 5 Efficient Employees -->
+                            <div class="col-md-6">
+                                <div class="efficiency-section">
+                                    <h6 class="text-warning mb-3">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>Bottom 5
+                                    </h6>
+                                    <div id="bottomEfficiencyList" class="efficiency-list">
+                                        <div class="text-center py-3">
+                                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <p class="mt-2 text-muted">Loading employees who need support...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Employee Risk Details Modal -->
+    <div class="modal fade" id="employeeRiskModal" tabindex="-1" aria-labelledby="employeeRiskModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="employeeRiskModalLabel">
+                        <i class="fas fa-users me-2"></i>
+                        <span id="modalRiskTitle">Employee Risk Details</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <small class="text-muted" id="modalRiskSubtitle">Click on employee to view detailed profile</small>
+                    </div>
+                    
+                    <!-- Search and Filter Controls -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="employeeSearchInput" placeholder="Search employees by ID or name...">
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-muted">
+                                <small>Showing <span id="modalDisplayedCount">0</span> employees</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Employee List -->
+                    <div class="table-responsive" style="max-height: 500px;">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="width: 15%;">Employee ID</th>
+                                    <th style="width: 25%;">Employee Name</th>
+                                    <th style="width: 15%;">Designation</th>
+                                    <th style="width: 15%;">Attendance</th>
+                                    <th style="width: 15%;">Efficiency</th>
+                                    <th style="width: 15%;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modalEmployeeTableBody">
+                                <!-- Employee rows will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Loading indicator -->
+                    <div id="modalLoadingIndicator" class="text-center py-4" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading employee data...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <nav aria-label="Employee pagination">
+                        <ul class="pagination pagination-sm mb-0" id="modalEmployeePagination">
+                            <!-- Pagination will be added here if needed -->
+                        </ul>
+                    </nav>
+                    <button type="button" class="btn btn-secondary ms-auto" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script>
+        // Efficiency Distribution Chart
+        const efficiencyCtx = document.getElementById('efficiencyChart').getContext('2d');
+        let efficiencyChart;
+        
+        // Function to load and display efficiency distribution with real CSV data
+        async function loadEfficiencyDistribution() {
+            try {
+                const response = await fetch('/api/employees');
+                const employees = await response.json();
+                
+                // Initialize efficiency range counters
+                const efficiencyRanges = {
+                    '60-70%': 0,
+                    '70-80%': 0,
+                    '80-90%': 0,
+                    '90-95%': 0,
+                    '95-100%': 0
+                };
+                
+                // Categorize employees by efficiency ranges
+                employees.forEach(emp => {
+                    const efficiency = emp.efficiency;
+                    if (efficiency >= 60 && efficiency < 70) {
+                        efficiencyRanges['60-70%']++;
+                    } else if (efficiency >= 70 && efficiency < 80) {
+                        efficiencyRanges['70-80%']++;
+                    } else if (efficiency >= 80 && efficiency < 90) {
+                        efficiencyRanges['80-90%']++;
+                    } else if (efficiency >= 90 && efficiency < 95) {
+                        efficiencyRanges['90-95%']++;
+                    } else if (efficiency >= 95 && efficiency <= 100) {
+                        efficiencyRanges['95-100%']++;
+                    }
+                });
+                
+                const rangeCounts = Object.values(efficiencyRanges);
+                
+                efficiencyChart = new Chart(efficiencyCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['60-70%', '70-80%', '80-90%', '90-95%', '95-100%'],
+                        datasets: [{
+                            label: 'Number of Employees',
+                            data: rangeCounts,
+                            backgroundColor: [
+                                '#f44336', '#ff9800', '#ffc107', '#4caf50', '#2196f3'
+                            ],
+                            borderColor: [
+                                '#d32f2f', '#f57c00', '#ffa000', '#388e3c', '#1976d2'
+                            ],
+                            borderWidth: 2,
+                            borderRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.parsed.y} employees`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: { 
+                                beginAtZero: true,
+                                title: { display: true, text: 'Number of Employees' }
+                            },
+                            x: { 
+                                title: { display: true, text: 'Efficiency Range' }
+                            }
+                        }
+                    }
+                });
+                
+                console.log('Efficiency Distribution loaded with real CSV data:', efficiencyRanges);
+                
+            } catch (error) {
+                console.error('Error loading efficiency distribution data:', error);
+                // Fallback to dummy data if API fails
+                efficiencyChart = new Chart(efficiencyCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['60-70%', '70-80%', '80-90%', '90-95%', '95-100%'],
+                        datasets: [{
+                            label: 'Number of Employees',
+                            data: [0, 0, 0, 0, 0],
+                            backgroundColor: [
+                                '#f44336', '#ff9800', '#ffc107', '#4caf50', '#2196f3'
+                            ],
+                            borderColor: [
+                                '#d32f2f', '#f57c00', '#ffa000', '#388e3c', '#1976d2'
+                            ],
+                            borderWidth: 2,
+                            borderRadius: 8
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.parsed.y} employees`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: { 
+                                beginAtZero: true,
+                                title: { display: true, text: 'Number of Employees' }
+                            },
+                            x: { 
+                                title: { display: true, text: 'Efficiency Range' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Function to load and display real quick stats from CSV data
+        async function loadQuickStats() {
+            try {
+                const response = await fetch('/api/employees');
+                const employees = await response.json();
+                
+                // Store data for filtering if not already loaded
+                if (!originalEmployeeData) {
+                    originalEmployeeData = employees;
+                    console.log('Employee data stored for filtering:', originalEmployeeData.length, 'employees');
+                    // Populate filter dropdowns
+                    populateFilterDropdowns(originalEmployeeData);
+                }
+                
+                // Calculate real statistics from CSV data
+                const totalEmployees = employees.length;
+                
+                // Calculate average attendance using the helper function
+                const avgAttendance = employees.reduce((sum, emp) => {
+                    return sum + calculateAttendancePercentage(emp);
+                }, 0) / totalEmployees || 0;
+                
+                // Calculate average efficiency from CSV data
+                const avgEfficiency = employees.reduce((sum, emp) => {
+                    return sum + (emp.efficiency || 0);
+                }, 0) / totalEmployees || 0;
+                
+                // Calculate burnout risk based on CSV metrics
+                const burnoutRiskEmployees = employees.filter(emp => {
+                    const attendance = calculateAttendancePercentage(emp);
+                    const efficiency = emp.efficiency || 0;
+                    const burnoutHours = emp.burnout_hours || 0;
+                    const absenteeismDays = emp.absenteeism_days || 0;
+                    
+                    // Define burnout risk criteria
+                    return attendance < 80 || 
+                           efficiency < 70 || 
+                           burnoutHours > 0 || 
+                           absenteeismDays > 8;
+                }).length;
+                
+                const burnoutRisk = (burnoutRiskEmployees / totalEmployees) * 100 || 0;
+                
+                // Update the stat cards with real data using proper IDs
+                document.getElementById('totalEmployeesCount').textContent = totalEmployees.toLocaleString();
+                document.getElementById('avgAttendanceRate').textContent = Math.round(avgAttendance) + '%';
+                document.getElementById('avgEfficiencyRate').textContent = Math.round(avgEfficiency) + '%';
+                document.getElementById('burnoutRiskRate').textContent = Math.round(burnoutRisk) + '%';
+                
+                console.log('Quick stats loaded with real CSV data:', {
+                    totalEmployees,
+                    avgAttendance: Math.round(avgAttendance),
+                    avgEfficiency: Math.round(avgEfficiency),
+                    burnoutRisk: Math.round(burnoutRisk),
+                    burnoutRiskEmployees
+                });
+                
+                // Initialize Employee Risk Assessment with real data using actual Fake_Id values
+                updateEmployeeRiskAssessment(employees);
+                
+                console.log('Employee Risk Assessment initialized with real Fake_Id values');
+                
+                return employees; // Return the data for potential reuse
+                
+            } catch (error) {
+                console.error('Error loading quick stats data:', error);
+                // Keep default dummy data if API fails
+                console.log('Using fallback dummy data for quick stats');
+                throw error; // Re-throw to allow proper error handling
+            }
+        }
+
+        // Helper function to get attendance percentage from API data
+        function calculateAttendancePercentage(emp) {
+            // The attendance field is already calculated properly in app.py
+            if (emp.attendance !== undefined) {
+                return emp.attendance;
+            }
+            
+            // Fallback calculation for raw CSV data if needed
+            if (emp.punctuality !== undefined) {
+                return Math.max(60, Math.min(100, emp.punctuality * 30 + 70));
+            }
+            
+            // Default fallback
+            return 75;
+        }
+        
+        // Load efficiency distribution with real data
+        loadEfficiencyDistribution();
+
+        // Load and display real quick stats from CSV data
+        loadQuickStats().then(() => {
+            console.log('Quick stats and risk assessment loaded successfully');
+            // Verify that risk data is properly loaded with Fake_Id values
+            if (window.realRiskEmployeeData) {
+                console.log('Risk assessment data verification:');
+                Object.keys(window.realRiskEmployeeData).forEach(riskType => {
+                    const employees = window.realRiskEmployeeData[riskType];
+                    console.log(`${riskType}: ${employees.length} employees`);
+                    if (employees.length > 0) {
+                        console.log(`Sample ${riskType} employee:`, {
+                            id: employees[0].id,
+                            name: employees[0].name,
+                            designation: employees[0].designation
+                        });
+                    }
+                });
+            }
+        }).catch(error => {
+            console.error('Failed to load quick stats:', error);
+        });
+
+        // Register Chart.js Annotation Plugin (fallback to custom plugin if not available)
+        try {
+            Chart.register(ChartAnnotation);
+        } catch (e) {
+            console.log('Annotation plugin not available, using custom labels');
+        }
+
+        // Custom plugin for category labels
+        const categoryLabelsPlugin = {
+            id: 'categoryLabels',
+            afterDraw: function(chart) {
+                const ctx = chart.ctx;
+                const chartArea = chart.chartArea;
+                
+                // Set font style
+                ctx.font = 'bold 11px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                // Calculate positions based on chart scales
+                const xScale = chart.scales.x;
+                const yScale = chart.scales.y;
+                
+                // Define label configurations
+                const labels = [
+                    {
+                        text: ['⭐ HIGH-HIGH', 'Star Performers'],
+                        x: xScale.getPixelForValue(98),
+                        y: yScale.getPixelForValue(95),
+                        bgColor: 'rgba(76, 175, 80, 0.9)',
+                        textColor: 'white'
+                    },
+                    {
+                        text: ['⚠️ LOW-LOW', 'At-Risk'],
+                        x: xScale.getPixelForValue(72),
+                        y: yScale.getPixelForValue(60),
+                        bgColor: 'rgba(244, 67, 54, 0.9)',
+                        textColor: 'white'
+                    },
+                    {
+                        text: ['📊 MIDDLE', 'Average'],
+                        x: xScale.getPixelForValue(90.5),
+                        y: yScale.getPixelForValue(85),
+                        bgColor: 'rgba(33, 150, 243, 0.9)',
+                        textColor: 'white'
+                    },
+                    {
+                        text: ['🎯 HIGH-LOW', 'Need Training'],
+                        x: xScale.getPixelForValue(97),
+                        y: yScale.getPixelForValue(70),
+                        bgColor: 'rgba(255, 152, 0, 0.9)',
+                        textColor: 'white'
+                    },
+                    {
+                        text: ['🏠 LOW-HIGH', 'Remote Work'],
+                        x: xScale.getPixelForValue(72),
+                        y: yScale.getPixelForValue(95),
+                        bgColor: 'rgba(156, 39, 176, 0.9)',
+                        textColor: 'white'
+                    }
+                ];
+                
+                // Draw labels
+                labels.forEach(label => {
+                    if (label.x >= chartArea.left && label.x <= chartArea.right &&
+                        label.y >= chartArea.top && label.y <= chartArea.bottom) {
+                        
+                        // Calculate text dimensions
+                        const lineHeight = 14;
+                        const padding = 8;
+                        const maxWidth = Math.max(...label.text.map(line => ctx.measureText(line).width));
+                        const boxWidth = maxWidth + padding * 2;
+                        const boxHeight = (label.text.length * lineHeight) + padding * 2;
+                        
+                        // Draw background box
+                        ctx.fillStyle = label.bgColor;
+                        ctx.fillRect(
+                            label.x - boxWidth / 2,
+                            label.y - boxHeight / 2,
+                            boxWidth,
+                            boxHeight
+                        );
+                        
+                        // Draw border
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(
+                            label.x - boxWidth / 2,
+                            label.y - boxHeight / 2,
+                            boxWidth,
+                            boxHeight
+                        );
+                        
+                        // Draw text lines
+                        ctx.fillStyle = label.textColor;
+                        label.text.forEach((line, index) => {
+                            const textY = label.y - (label.text.length - 1) * lineHeight / 2 + index * lineHeight;
+                            ctx.fillText(line, label.x, textY);
+                        });
+                    }
+                });
+            }
+        };
+
+        // Attendance vs Efficiency Correlation Chart
+        const correlationCtx = document.getElementById('correlationChart').getContext('2d');
+        let correlationChart;
+        
+        // Function to load and display correlation chart with real employee data
+        async function loadCorrelationChart() {
+            try {
+                const response = await fetch('/api/employees');
+                const employees = await response.json();
+                
+                // Categorize employees based on attendance and efficiency
+                const starPerformers = [];
+                const atRiskEmployees = [];
+                const averagePerformers = [];
+                const needTraining = [];
+                const remoteCandidates = [];
+                
+                employees.forEach(emp => {
+                    const dataPoint = {
+                        x: emp.attendance,
+                        y: emp.efficiency,
+                        empId: emp.id,
+                        empName: emp.name,
+                        empDesignation: emp.designation
+                    };
+                    
+                    // Categorize based on attendance and efficiency thresholds
+                    if (emp.attendance >= 96 && emp.efficiency >= 90) {
+                        starPerformers.push(dataPoint);
+                    } else if (emp.attendance <= 85 && emp.efficiency <= 80) {
+                        atRiskEmployees.push(dataPoint);
+                    } else if (emp.attendance >= 94 && emp.efficiency <= 82) {
+                        needTraining.push(dataPoint);
+                    } else if (emp.attendance <= 84 && emp.efficiency >= 90) {
+                        remoteCandidates.push(dataPoint);
+                    } else {
+                        averagePerformers.push(dataPoint);
+                    }
+                });
+                
+                correlationChart = new Chart(correlationCtx, {
+                    type: 'scatter',
+                    plugins: [categoryLabelsPlugin],
+                    data: {
+                        datasets: [
+                            {
+                                label: `Star Performers (${starPerformers.length})`,
+                                data: starPerformers,
+                                backgroundColor: 'rgba(76, 175, 80, 0.8)',
+                                borderColor: '#2E7D32',
+                                borderWidth: 2,
+                                pointRadius: function(context) {
+                                    return starPerformers.length > 50 ? 4 : 6;
+                                },
+                                pointHoverRadius: function(context) {
+                                    return starPerformers.length > 50 ? 6 : 8;
+                                },
+                                pointHoverBorderWidth: 3
+                            },
+                            {
+                                label: `At-Risk Employees (${atRiskEmployees.length})`,
+                                data: atRiskEmployees,
+                                backgroundColor: 'rgba(244, 67, 54, 0.8)',
+                                borderColor: '#C62828',
+                                borderWidth: 2,
+                                pointRadius: function(context) {
+                                    return atRiskEmployees.length > 50 ? 4 : 6;
+                                },
+                                pointHoverRadius: function(context) {
+                                    return atRiskEmployees.length > 50 ? 6 : 8;
+                                },
+                                pointHoverBorderWidth: 3
+                            },
+                            {
+                                label: `Average Performers (${averagePerformers.length})`,
+                                data: averagePerformers,
+                                backgroundColor: 'rgba(33, 150, 243, 0.6)',
+                                borderColor: '#1976D2',
+                                borderWidth: 1,
+                                pointRadius: function(context) {
+                                    return averagePerformers.length > 200 ? 3 : 4;
+                                },
+                                pointHoverRadius: function(context) {
+                                    return averagePerformers.length > 200 ? 5 : 6;
+                                },
+                                pointHoverBorderWidth: 2
+                            },
+                            {
+                                label: `Need Training (${needTraining.length})`,
+                                data: needTraining,
+                                backgroundColor: 'rgba(255, 152, 0, 0.9)',
+                                borderColor: '#F57C00',
+                                borderWidth: 3,
+                                pointRadius: 7,
+                                pointHoverRadius: 10,
+                                pointStyle: 'triangle',
+                                pointHoverBorderWidth: 3
+                            },
+                            {
+                                label: `Remote Candidates (${remoteCandidates.length})`,
+                                data: remoteCandidates,
+                                backgroundColor: 'rgba(156, 39, 176, 0.9)',
+                                borderColor: '#7B1FA2',
+                                borderWidth: 3,
+                                pointRadius: 7,
+                                pointHoverRadius: 10,
+                                pointStyle: 'rectRot',
+                                pointHoverBorderWidth: 3
+                            }
+                        ]
+                    },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    intersect: false,
+                    mode: 'point'
+                },
+                animation: {
+                    duration: 1000,
+                    easing: 'easeOutQuart'
+                },
+                onClick: function(event, elements) {
+                    if (elements.length > 0) {
+                        const element = elements[0];
+                        const dataPoint = correlationChart.data.datasets[element.datasetIndex].data[element.index];
+                        if (dataPoint.empId && dataPoint.empName) {
+                            // Store employee data and redirect to employee view
+                            const employeeData = {
+                                id: dataPoint.empId,
+                                name: dataPoint.empName,
+                                searchTimestamp: Date.now()
+                            };
+                            localStorage.setItem('selectedEmployee', JSON.stringify(employeeData));
+                            window.location.href = 'employee-view.html';
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { 
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 12,
+                            font: {
+                                size: 11,
+                                weight: '500'
+                            },
+                            boxWidth: 15,
+                            boxHeight: 15
+                        }
+                    },
+                    tooltip: {
+                        enabled: true,
+                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        borderColor: '#666',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        displayColors: true,
+                        bodyFont: {
+                            size: 12
+                        },
+                        titleFont: {
+                            size: 13,
+                            weight: 'bold'
+                        },
+                        padding: 12,
+                        callbacks: {
+                            title: function(context) {
+                                const dataPoint = context[0].raw;
+                                return `${dataPoint.empName || 'Employee'} (ID: ${dataPoint.empId || 'N/A'})`;
+                            },
+                            label: function(context) {
+                                const dataPoint = context.raw;
+                                let category = '';
+                                const x = Math.round(context.parsed.x * 10) / 10;
+                                const y = Math.round(context.parsed.y * 10) / 10;
+                                
+                                if (x >= 96 && y >= 90) {
+                                    category = '⭐ Star Performer';
+                                } else if (x <= 85 && y <= 80) {
+                                    category = '⚠️ At-Risk Employee';
+                                } else if (x >= 94 && y <= 82) {
+                                    category = '🎯 Needs Training Support';
+                                } else if (x <= 84 && y >= 90) {
+                                    category = '🏠 Remote Work Candidate';
+                                } else {
+                                    category = '📊 Average Performer';
+                                }
+                                
+                                return [
+                                    `${category}`,
+                                    `Role: ${dataPoint.empDesignation || 'N/A'}`,
+                                    `Attendance: ${x}%`,
+                                    `Efficiency: ${y}%`
+                                ];
+                            },
+                            afterLabel: function(context) {
+                                return 'Click to view employee profile';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { 
+                        title: { 
+                            display: true, 
+                            text: 'Attendance (%)',
+                            font: {
+                                size: 13,
+                                weight: 'bold'
+                            },
+                            color: '#333'
+                        },
+                        min: 60, 
+                        max: 100,
+                        ticks: {
+                            stepSize: 5,
+                            font: {
+                                size: 11
+                            },
+                            color: '#666'
+                        },
+                        grid: {
+                            color: function(context) {
+                                if (context.tick.value === 85 || context.tick.value === 96) {
+                                    return 'rgba(255, 152, 0, 0.5)';
+                                }
+                                return 'rgba(0, 0, 0, 0.08)';
+                            },
+                            lineWidth: function(context) {
+                                if (context.tick.value === 85 || context.tick.value === 96) {
+                                    return 2;
+                                }
+                                return 1;
+                            }
+                        }
+                    },
+                    y: { 
+                        title: { 
+                            display: true, 
+                            text: 'Efficiency (%)',
+                            font: {
+                                size: 13,
+                                weight: 'bold'
+                            },
+                            color: '#333'
+                        },
+                        min: 40, 
+                        max: 100,
+                        ticks: {
+                            stepSize: 5,
+                            font: {
+                                size: 11
+                            },
+                            color: '#666'
+                        },
+                        grid: {
+                            color: function(context) {
+                                if (context.tick.value === 80 || context.tick.value === 90) {
+                                    return 'rgba(255, 152, 0, 0.5)';
+                                }
+                                return 'rgba(0, 0, 0, 0.08)';
+                            },
+                            lineWidth: function(context) {
+                                if (context.tick.value === 80 || context.tick.value === 90) {
+                                    return 2;
+                                }
+                                return 1;
+                            }
+                        }
+                    }
+                },
+                annotation: {
+                    annotations: {
+                        starPerformerZone: {
+                            type: 'box',
+                            xMin: 96,
+                            xMax: 100,
+                            yMin: 90,
+                            yMax: 100,
+                            backgroundColor: 'rgba(76, 175, 80, 0.05)',
+                            borderColor: 'rgba(76, 175, 80, 0.4)',
+                            borderWidth: 2,
+                            borderDash: [5, 5]
+                        },
+                        starPerformerLabel: {
+                            type: 'label',
+                            xValue: 98,
+                            yValue: 95,
+                            content: ['⭐ HIGH-HIGH', 'Star Performers'],
+                            backgroundColor: 'rgba(76, 175, 80, 0.9)',
+                            color: 'white',
+                            font: {
+                                size: 11,
+                                weight: 'bold'
+                            },
+                            padding: 6,
+                            borderRadius: 4,
+                            textAlign: 'center'
+                        },
+                        atRiskZone: {
+                            type: 'box',
+                            xMin: 60,
+                            xMax: 85,
+                            yMin: 40,
+                            yMax: 80,
+                            backgroundColor: 'rgba(244, 67, 54, 0.05)',
+                            borderColor: 'rgba(244, 67, 54, 0.4)',
+                            borderWidth: 2,
+                            borderDash: [5, 5]
+                        },
+                        atRiskLabel: {
+                            type: 'label',
+                            xValue: 72,
+                            yValue: 60,
+                            content: ['⚠️ LOW-LOW', 'At-Risk Employees'],
+                            backgroundColor: 'rgba(244, 67, 54, 0.9)',
+                            color: 'white',
+                            font: {
+                                size: 11,
+                                weight: 'bold'
+                            },
+                            padding: 6,
+                            borderRadius: 4,
+                            textAlign: 'center'
+                        },
+                        averageZone: {
+                            type: 'box',
+                            xMin: 85,
+                            xMax: 96,
+                            yMin: 80,
+                            yMax: 90,
+                            backgroundColor: 'rgba(33, 150, 243, 0.03)',
+                            borderColor: 'rgba(33, 150, 243, 0.2)',
+                            borderWidth: 1,
+                            borderDash: [3, 3]
+                        },
+                        averageLabel: {
+                            type: 'label',
+                            xValue: 90.5,
+                            yValue: 85,
+                            content: ['📊 MIDDLE', 'Average Performers'],
+                            backgroundColor: 'rgba(33, 150, 243, 0.9)',
+                            color: 'white',
+                            font: {
+                                size: 10,
+                                weight: 'bold'
+                            },
+                            padding: 5,
+                            borderRadius: 4,
+                            textAlign: 'center'
+                        },
+                        needTrainingZone: {
+                            type: 'box',
+                            xMin: 94,
+                            xMax: 100,
+                            yMin: 40,
+                            yMax: 82,
+                            backgroundColor: 'rgba(255, 152, 0, 0.03)',
+                            borderColor: 'rgba(255, 152, 0, 0.3)',
+                            borderWidth: 1,
+                            borderDash: [3, 3]
+                        },
+                        needTrainingLabel: {
+                            type: 'label',
+                            xValue: 97,
+                            yValue: 70,
+                            content: ['🎯 HIGH-LOW', 'Need Training'],
+                            backgroundColor: 'rgba(255, 152, 0, 0.9)',
+                            color: 'white',
+                            font: {
+                                size: 10,
+                                weight: 'bold'
+                            },
+                            padding: 5,
+                            borderRadius: 4,
+                            textAlign: 'center'
+                        },
+                        remoteCandidateZone: {
+                            type: 'box',
+                            xMin: 60,
+                            xMax: 84,
+                            yMin: 90,
+                            yMax: 100,
+                            backgroundColor: 'rgba(156, 39, 176, 0.03)',
+                            borderColor: 'rgba(156, 39, 176, 0.3)',
+                            borderWidth: 1,
+                            borderDash: [3, 3]
+                        },
+                        remoteCandidateLabel: {
+                            type: 'label',
+                            xValue: 72,
+                            yValue: 95,
+                            content: ['🏠 LOW-HIGH', 'Remote Candidates'],
+                            backgroundColor: 'rgba(156, 39, 176, 0.9)',
+                            color: 'white',
+                            font: {
+                                size: 10,
+                                weight: 'bold'
+                            },
+                            padding: 5,
+                            borderRadius: 4,
+                            textAlign: 'center'
+                        }
+                    }
+                }
+            }
+                });
+                
+                console.log('Correlation chart loaded with real employee data:', {
+                    starPerformers: starPerformers.length,
+                    atRisk: atRiskEmployees.length,
+                    average: averagePerformers.length,
+                    needTraining: needTraining.length,
+                    remoteCandidates: remoteCandidates.length,
+                    totalEmployees: employees.length
+                });
+                
+            } catch (error) {
+                console.error('Error loading correlation chart data:', error);
+                // Fallback to show empty chart
+                correlationChart = new Chart(correlationCtx, {
+                    type: 'scatter',
+                    data: { datasets: [] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: { title: { display: true, text: 'Attendance (%)' }, min: 70, max: 100 },
+                            y: { title: { display: true, text: 'Efficiency (%)' }, min: 70, max: 100 }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Load correlation chart with real data
+        loadCorrelationChart();
+
+        // Designation Performance Chart
+        const departmentCtx = document.getElementById('departmentChart').getContext('2d');
+        new Chart(departmentCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Apprentice Leader', 'Software Engineer', 'Senior Software Engineer', 'Trainee Decision Scientist'],
+                datasets: [{
+                    label: 'Average Efficiency by Designation',
+                    data: [89, 92, 85, 88],
+                    backgroundColor: '#1565c0',
+                    borderColor: '#0d47a1',
+                    borderWidth: 2,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Efficiency: ${context.parsed.x}%`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { 
+                        beginAtZero: true,
+                        max: 100,
+                        title: { display: true, text: 'Efficiency (%)' }
+                    },
+                    y: {
+                        title: { display: true, text: 'Department' }
+                    }
+                }
+            }
+        });
+
+        // Behavior Clusters Chart
+        const clusterCtx = document.getElementById('clusterChart').getContext('2d');
+        new Chart(clusterCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Consistent Performer', 'Silent Overworker', 'Late Starter', 'At Risk'],
+                datasets: [{
+                    data: [45, 28, 18, 9],
+                    backgroundColor: ['#4caf50', '#2196f3', '#ff9800', '#f44336'],
+                    borderColor: ['#388e3c', '#1976d2', '#f57c00', '#d32f2f'],
+                    borderWidth: 3,
+                    hoverOffset: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '55%',
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            padding: 15,
+                            usePointStyle: true,
+                            font: {
+                                size: 11
+                            },
+                            generateLabels: function(chart) {
+                                const data = chart.data;
+                                const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                return data.labels.map((label, i) => {
+                                    const value = data.datasets[0].data[i];
+                                    const percentage = ((value / total) * 100).toFixed(0);
+                                    return {
+                                        text: `${label} (${percentage})`,
+                                        fillStyle: data.datasets[0].backgroundColor[i],
+                                        strokeStyle: data.datasets[0].borderColor[i],
+                                        lineWidth: 2,
+                                        hidden: false,
+                                        index: i
+                                    };
+                                });
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: 'white',
+                        bodyColor: 'white',
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.label}: ${context.parsed}%`;
+                            },
+                            afterLabel: function(context) {
+                                const descriptions = {
+                                    'Consistent Performer': 'Regular attendance, steady productivity',
+                                    'Silent Overworker': 'High productivity, long hours',
+                                    'Late Starter': 'Slow mornings, strong afternoons',
+                                    'At Risk': 'Irregular patterns, needs attention'
+                                };
+                                return descriptions[context.label] || '';
+                            }
+                        }
+                    }
+                },
+                layout: {
+                    padding: 5
+                }
+            }
+        });
+
+        // Work Hours Distribution Chart
+        const workHoursCtx = document.getElementById('workHoursChart').getContext('2d');
+        new Chart(workHoursCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Bay Hours', 'Cafeteria Hours', 'OOO Hours'],
+                datasets: [{
+                    label: 'Average Hours per Day',
+                    data: [6.5, 1.2, 0.8],
+                    backgroundColor: ['#1565c0', '#ff9800', '#f44336'],
+                    borderColor: ['#0d47a1', '#f57c00', '#d32f2f'],
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false
+                }]
+            },
+            plugins: [{
+                id: 'dataLabels',
+                afterDatasetsDraw: function(chart) {
+                    const ctx = chart.ctx;
+                    chart.data.datasets.forEach(function(dataset, i) {
+                        const meta = chart.getDatasetMeta(i);
+                        meta.data.forEach(function(element, index) {
+                            const data = dataset.data[index];
+                            const x = element.x;
+                            const y = element.y - 10;
+                            
+                            ctx.fillStyle = '#333';
+                            ctx.font = 'bold 12px Arial';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'bottom';
+                            ctx.fillText(data + ' hrs', x, y);
+                        });
+                    });
+                }
+            }],
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: 'white',
+                        bodyColor: 'white',
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.label}: ${context.parsed} hours/day`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Hours per Day',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            },
+                            color: '#333'
+                        },
+                        ticks: {
+                            stepSize: 1,
+                            font: { size: 11 },
+                            color: '#666'
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.1)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Work Categories',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            },
+                            color: '#333'
+                        },
+                        ticks: {
+                            font: { size: 11 },
+                            color: '#666'
+                        }
+                    }
+                },
+                layout: {
+                    padding: 10
+                }
+            }
+        });
+
+        // Monthly Attendance Trends Chart
+        const attendanceCtx = document.getElementById('attendanceChart').getContext('2d');
+        new Chart(attendanceCtx, {
+            type: 'line',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                datasets: [{
+                    label: 'Overall Attendance',
+                    data: [88, 91, 94, 89, 92, 95, 93, 90, 94, 92, 89, 91],
+                    borderColor: '#1565c0',
+                    backgroundColor: 'rgba(21, 101, 192, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#1565c0',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 6
+                }, {
+                    label: 'Efficiency Trend',
+                    data: [85, 87, 89, 86, 88, 91, 89, 87, 90, 88, 86, 88],
+                    borderColor: '#4caf50',
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#4caf50',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            pointStyle: 'line'
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            title: function(context) {
+                                return 'Month: ' + context[0].label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: false,
+                        min: 40,
+                        max: 100,
+                        title: { display: true, text: 'Percentage (%)' },
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        }
+                    },
+                    x: { 
+                        title: { display: true, text: 'Month' },
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
+                        }
+                    }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
+                }
+            }
+        });
+
+        // Initialize Bootstrap tooltips for cluster explanations
+        document.addEventListener('DOMContentLoaded', function() {
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        });
+
+        // Real employee risk data will be populated from CSV data via updateEmployeeRiskAssessment()
+        // This ensures we always use actual Fake_Id values from the CSV file
+
+        // Pagination variables
+        let currentPage = 1;
+        let employeesPerPage = 100;
+        let currentRiskType = '';
+        let totalEmployeesInCategory = 0;
+
+        // Helper to guarantee risk data exists before opening the modal
+        async function ensureRiskDataLoaded() {
+            // Already computed and non-empty
+            if (window.realRiskEmployeeData && (
+                (window.realRiskEmployeeData.high && window.realRiskEmployeeData.high.length) ||
+                (window.realRiskEmployeeData.medium && window.realRiskEmployeeData.medium.length) ||
+                (window.realRiskEmployeeData.low && window.realRiskEmployeeData.low.length)
+            )) {
+                return window.realRiskEmployeeData;
+            }
+
+            try {
+                // Reuse already fetched data for filters when available
+                if (Array.isArray(originalEmployeeData) && originalEmployeeData.length) {
+                    updateEmployeeRiskAssessment(originalEmployeeData);
+                    return window.realRiskEmployeeData;
+                }
+
+                // Fallback to fetching from API
+                const resp = await fetch('/api/employees');
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const employees = await resp.json();
+                updateEmployeeRiskAssessment(employees);
+                return window.realRiskEmployeeData;
+            } catch (err) {
+                console.error('ensureRiskDataLoaded failed:', err);
+                throw err;
+            }
+        }
+
+        function showRiskEmployees(riskType, page = 1) {
+            console.log('showRiskEmployees called with:', riskType, 'page:', page);
+            
+            // Update global pagination variables
+            currentRiskType = riskType;
+            currentPage = page;
+            
+            // Get modal elements
+            const modal = new bootstrap.Modal(document.getElementById('employeeRiskModal'));
+            const modalTitle = document.getElementById('modalRiskTitle');
+            const modalSubtitle = document.getElementById('modalRiskSubtitle');
+            const modalTableBody = document.getElementById('modalEmployeeTableBody');
+            const modalDisplayedCount = document.getElementById('modalDisplayedCount');
+            const modalPagination = document.getElementById('modalEmployeePagination');
+            const modalLoadingIndicator = document.getElementById('modalLoadingIndicator');
+            
+            if (!modalTitle || !modalTableBody) {
+                console.error('Required modal elements not found');
+                return;
+            }
+            
+            // Set title and subtitle based on risk type
+            const titles = {
+                high: {
+                    title: '🚨 High Risk Employees',
+                    subtitle: 'Employees requiring immediate attention and intervention',
+                    badgeClass: 'risk-high'
+                },
+                medium: {
+                    title: '⚠️ Medium Risk Employees', 
+                    subtitle: 'Employees that need monitoring and support',
+                    badgeClass: 'risk-medium'
+                },
+                low: {
+                    title: '✅ Performing Well Employees',
+                    subtitle: 'Employees with stable performance and attendance',
+                    badgeClass: 'risk-low'
+                }
+            };
+            
+            const config = titles[riskType];
+            modalTitle.textContent = config.title;
+            modalSubtitle.textContent = config.subtitle;
+            
+            // Show loading indicator and clear table
+            modalLoadingIndicator.style.display = 'block';
+            modalTableBody.innerHTML = '';
+            
+            // Show the modal
+            const modalInstance = bootstrap.Modal.getOrCreateInstance(document.getElementById('employeeRiskModal'));
+            modalInstance.show();
+            
+            // Ensure risk data is available, then populate
+            ensureRiskDataLoaded()
+                .then(() => {
+                    const data = (window.realRiskEmployeeData && window.realRiskEmployeeData[riskType]) ? window.realRiskEmployeeData[riskType] : [];
+                    if (!data.length) {
+                        showModalError(`No ${riskType} risk employees found`);
+                        return;
+                    }
+                    console.log('Using computed risk data for', riskType, '- Employee count:', data.length);
+                    populateModalTable(data, config, page);
+                })
+                .catch(error => {
+                    console.error('Failed to load employee data:', error);
+                    showModalError('Failed to load employee data. Please try again.');
+                });
+        }
+        
+        function populateModalTable(allEmployees, config, page) {
+            const modalTableBody = document.getElementById('modalEmployeeTableBody');
+            const modalDisplayedCount = document.getElementById('modalDisplayedCount');
+            const modalPagination = document.getElementById('modalEmployeePagination');
+            const modalLoadingIndicator = document.getElementById('modalLoadingIndicator');
+            
+            // Hide loading indicator
+            modalLoadingIndicator.style.display = 'none';
+            
+            totalEmployeesInCategory = allEmployees.length;
+            console.log('Total employees for modal:', totalEmployeesInCategory);
+            
+            if (allEmployees.length === 0) {
+                showModalError(`No ${currentRiskType} risk employees found`);
+                return;
+            }
+            
+            // Calculate pagination
+            const totalPages = Math.ceil(totalEmployeesInCategory / employeesPerPage);
+            const startIndex = (page - 1) * employeesPerPage;
+            const endIndex = Math.min(startIndex + employeesPerPage, totalEmployeesInCategory);
+            const employeesToShow = allEmployees.slice(startIndex, endIndex);
+            
+            console.log(`Showing employees ${startIndex + 1}-${endIndex} of ${totalEmployeesInCategory} (Page ${page}/${totalPages})`);
+            
+            // Clear and populate table
+            modalTableBody.innerHTML = '';
+            
+            employeesToShow.forEach((emp, index) => {
+                const employeeId = emp.id || emp.fake_id || emp.Fake_Id || `EMP${startIndex + index + 1}`;
+                const employeeName = emp.name || emp.Name || 'Unknown Employee';
+                const employeeDesignation = emp.designation || emp.Designation || 'N/A';
+                
+                const employeeAttendance = Math.round(calculateAttendancePercentage(emp));
+                const employeeEfficiency = Math.round(emp.efficiency || emp.Efficiency || 0);
+                
+                const row = document.createElement('tr');
+                row.className = 'employee-row';
+                row.style.cursor = 'pointer';
+                
+                // Generate avatar circle with initials
+                const initials = employeeName.split(' ').map(name => name.charAt(0)).join('').substring(0, 2);
+                const avatarColors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'];
+                const avatarColor = avatarColors[index % avatarColors.length];
+                
+                row.innerHTML = `
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <div class="avatar-circle me-2" style="background-color: ${avatarColor}; color: white; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.8em; font-weight: bold;">
+                                ${initials}
+                            </div>
+                            <strong>${employeeId}</strong>
+                        </div>
+                    </td>
+                    <td>
+                        <div>
+                            <strong>${employeeName}</strong>
+                            <br>
+                            <small class="text-muted">Click to view details</small>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary">${employeeDesignation}</span>
+                    </td>
+                    <td>
+                        <span class="badge ${employeeAttendance >= 90 ? 'bg-success' : employeeAttendance >= 80 ? 'bg-warning' : 'bg-danger'}">${employeeAttendance}%</span>
+                    </td>
+                    <td>
+                        <span class="badge ${employeeEfficiency >= 90 ? 'bg-success' : employeeEfficiency >= 80 ? 'bg-warning' : 'bg-danger'}">${employeeEfficiency}%</span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); redirectToEmployeeView('${employeeId}', '${employeeName}')">
+                            <i class="fas fa-eye me-1"></i>View
+                        </button>
+                    </td>
+                `;
+                
+                // Add click handler to row
+                row.onclick = () => redirectToEmployeeView(employeeId, employeeName);
+                
+                modalTableBody.appendChild(row);
+            });
+            
+            // Update displayed count
+            modalDisplayedCount.textContent = `${startIndex + 1}-${endIndex} of ${totalEmployeesInCategory}`;
+            
+            // Generate pagination for modal
+            generateModalPagination(totalPages, page);
+        }
+        
+        function showModalError(message) {
+            const modalTableBody = document.getElementById('modalEmployeeTableBody');
+            const modalLoadingIndicator = document.getElementById('modalLoadingIndicator');
+            const modalDisplayedCount = document.getElementById('modalDisplayedCount');
+            
+            modalLoadingIndicator.style.display = 'none';
+            modalDisplayedCount.textContent = '0 employees';
+            
+            modalTableBody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-4">
+                        <i class="fas fa-info-circle text-info mb-2"></i>
+                        <p class="text-muted mb-0">${message}</p>
+                    </td>
+                </tr>
+            `;
+        }
+        
+        function generateModalPagination(totalPages, currentPage) {
+            const pagination = document.getElementById('modalEmployeePagination');
+            if (!pagination) return;
+            
+            pagination.innerHTML = '';
+            
+            if (totalPages <= 1) return;
+            
+            // Previous button
+            const prevLi = document.createElement('li');
+            prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+            prevLi.innerHTML = `
+                <a class="page-link" href="#" onclick="changeModalPage(${currentPage - 1}); return false;">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+            `;
+            pagination.appendChild(prevLi);
+            
+            // Page numbers (simplified for modal)
+            let startPage = Math.max(1, currentPage - 2);
+            let endPage = Math.min(totalPages, currentPage + 2);
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const pageLi = document.createElement('li');
+                pageLi.className = `page-item ${i === currentPage ? 'active' : ''}`;
+                pageLi.innerHTML = `<a class="page-link" href="#" onclick="changeModalPage(${i}); return false;">${i}</a>`;
+                pagination.appendChild(pageLi);
+            }
+            
+            // Next button
+            const nextLi = document.createElement('li');
+            nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+            nextLi.innerHTML = `
+                <a class="page-link" href="#" onclick="changeModalPage(${currentPage + 1}); return false;">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            `;
+            pagination.appendChild(nextLi);
+        }
+        
+        function changeModalPage(page) {
+            if (page < 1 || !currentRiskType) return;
+            
+            const totalPages = Math.ceil(totalEmployeesInCategory / employeesPerPage);
+            if (page > totalPages) return;
+            
+            // Update current page and repopulate modal
+            currentPage = page;
+            if (window.realRiskEmployeeData && window.realRiskEmployeeData[currentRiskType]) {
+                const allEmployees = window.realRiskEmployeeData[currentRiskType];
+                const config = {
+                    high: { badgeClass: 'risk-high' },
+                    medium: { badgeClass: 'risk-medium' },
+                    low: { badgeClass: 'risk-low' }
+                }[currentRiskType];
+                populateModalTable(allEmployees, config, page);
+            }
+        }
+
+        function hideEmployeeDropdown() {
+            document.getElementById('employeeDropdown').style.display = 'none';
+        }
+
+        // Add search functionality to the modal
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('employeeSearchInput');
+            if (searchInput) {
+                let searchTimeout;
+                searchInput.addEventListener('input', function() {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => {
+                        filterModalEmployees(this.value);
+                    }, 300); // Debounce search
+                });
+            }
+        });
+
+        function filterModalEmployees(searchTerm) {
+            const rows = document.querySelectorAll('#modalEmployeeTableBody tr');
+            let visibleCount = 0;
+            
+            rows.forEach(row => {
+                if (row.cells.length < 2) return; // Skip error/empty rows
+                
+                const employeeId = row.cells[0].textContent.toLowerCase();
+                const employeeName = row.cells[1].textContent.toLowerCase();
+                const searchLower = searchTerm.toLowerCase();
+                
+                const matches = employeeId.includes(searchLower) || employeeName.includes(searchLower);
+                
+                if (matches || searchTerm === '') {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // Update the count display
+            const countElement = document.getElementById('modalDisplayedCount');
+            if (countElement) {
+                if (searchTerm === '') {
+                    // Show original pagination count
+                    const startIndex = (currentPage - 1) * employeesPerPage;
+                    const endIndex = Math.min(startIndex + employeesPerPage, totalEmployeesInCategory);
+                    countElement.textContent = `${startIndex + 1}-${endIndex} of ${totalEmployeesInCategory}`;
+                } else {
+                    countElement.textContent = `${visibleCount} of ${totalEmployeesInCategory} (filtered)`;
+                }
+            }
+        }
+
+
+
+
+
+        function redirectToEmployeeView(employeeId, employeeName) {
+            // Store employee data in localStorage for the employee view page
+            const employeeData = {
+                id: employeeId,
+                name: employeeName,
+                searchTimestamp: Date.now()
+            };
+            localStorage.setItem('selectedEmployee', JSON.stringify(employeeData));
+            
+            // Redirect to employee view page
+            window.location.href = 'employee-view.html';
+        }
+
+        function showRiskPreview(riskType) {
+            const preview = document.getElementById('riskPreview');
+            const title = document.getElementById('previewTitle');
+            const employeesDiv = document.getElementById('previewEmployees');
+            
+            // Use only real CSV data with actual Fake_Id values
+            const employees = (window.realRiskEmployeeData && window.realRiskEmployeeData[riskType]) 
+                             ? window.realRiskEmployeeData[riskType] 
+                             : [];
+            
+            const employeeCount = employees.length;
+            const riskTypeLabel = riskType === 'high' ? 'High Risk' : 
+                                 riskType === 'medium' ? 'Medium Risk' : 'Performing Well';
+            
+            title.textContent = `${riskTypeLabel} (${employeeCount} employees)`;
+            
+            // Clear previous preview
+            employeesDiv.innerHTML = '';
+            
+            // Show first 8 employees as preview
+            const previewEmployees = employees.slice(0, 8);
+            
+            previewEmployees.forEach(emp => {
+                const empSpan = document.createElement('span');
+                empSpan.className = 'preview-employee';
+                const empId = emp.id || emp.id;
+                const empName = emp.name || emp.name;
+                empSpan.textContent = `${empId}: ${empName}`;
+                employeesDiv.appendChild(empSpan);
+            });
+            
+            // Add "and more..." if there are more employees
+            if (employees.length > 8) {
+                const moreSpan = document.createElement('span');
+                moreSpan.className = 'preview-employee';
+                moreSpan.style.background = '#f0f0f0';
+                moreSpan.style.color = '#666';
+                moreSpan.textContent = `+${employees.length - 8} more`;
+                employeesDiv.appendChild(moreSpan);
+            }
+            
+            preview.style.display = 'block';
+        }
+
+        function hideRiskPreview() {
+            document.getElementById('riskPreview').style.display = 'none';
+        }
+
+        // Filter functionality
+        let originalEmployeeData = null;
+        let currentFilters = {
+            designation: '',
+            accountCode: ''
+        };
+
+        // Initialize filters
+        document.addEventListener('DOMContentLoaded', function() {
+            // Store original employee data for filtering
+            loadOriginalEmployeeData();
+        });
+
+        async function loadOriginalEmployeeData() {
+            // If data is already loaded by loadQuickStats(), use it
+            if (originalEmployeeData) {
+                console.log('Employee data already available for filtering:', originalEmployeeData.length, 'employees');
+                populateFilterDropdowns(originalEmployeeData);
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/employees');
+                originalEmployeeData = await response.json();
+                console.log('Original employee data loaded for filtering:', originalEmployeeData.length, 'employees');
+                
+                // Populate filter dropdowns with actual data
+                populateFilterDropdowns(originalEmployeeData);
+                
+                // Also seed Employee Risk Assessment counts immediately on page load
+                try {
+                    updateEmployeeRiskAssessment(originalEmployeeData);
+                } catch (e) {
+                    console.warn('Failed to update risk assessment from originalEmployeeData:', e);
+                }
+            } catch (error) {
+                console.error('Error loading employee data for filtering:', error);
+                // Use mock data as fallback
+                originalEmployeeData = generateMockEmployeeData();
+                try {
+                    updateEmployeeRiskAssessment(originalEmployeeData);
+                } catch (e) {
+                    console.warn('Failed to update risk assessment from mock data:', e);
+                }
+            }
+        }
+
+        function populateFilterDropdowns(employeeData) {
+            if (!employeeData) return;
+
+            // Populate Account Code Filter
+            const accountCodeSelect = document.getElementById('accountCodeFilter');
+            if (accountCodeSelect) {
+                // Get unique account codes from the data
+                const uniqueAccountCodes = [...new Set(employeeData.map(emp => {
+                    return emp.accountCode || emp.Account_code || emp.account_code;
+                }).filter(code => code && code.trim() !== ''))].sort();
+
+                // Clear existing options except "All Account Codes"
+                accountCodeSelect.innerHTML = '';
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'All Account Codes';
+                accountCodeSelect.appendChild(defaultOption);
+
+                // Add options for each unique account code
+                uniqueAccountCodes.forEach(accountCode => {
+                    const option = document.createElement('option');
+                    option.value = accountCode;
+                    option.textContent = accountCode;
+                    accountCodeSelect.appendChild(option);
+                });
+
+                console.log('Populated account code filter with', uniqueAccountCodes.length, 'unique codes');
+            }
+
+            // Populate Designation Filter
+            const designationSelect = document.getElementById('designationFilter');
+            if (designationSelect) {
+                // Get unique designations from the data
+                const uniqueDesignations = [...new Set(employeeData.map(emp => {
+                    return emp.designation || emp.Designation;
+                }).filter(designation => designation && designation.trim() !== ''))].sort();
+
+                // Clear existing options except "All Designations"
+                designationSelect.innerHTML = '';
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'All Designations';
+                designationSelect.appendChild(defaultOption);
+
+                // Add options for each unique designation with descriptions
+                const designationDescriptions = {
+                    'AL': 'AL - Associate Leader',
+                    'TDS': 'TDS - Trainee Decision Scientist', 
+                    'Con': 'Con - Consultant'
+                };
+
+                uniqueDesignations.forEach(designation => {
+                    const option = document.createElement('option');
+                    option.value = designation;
+                    option.textContent = designationDescriptions[designation] || designation;
+                    designationSelect.appendChild(option);
+                });
+
+                console.log('Populated designation filter with', uniqueDesignations.length, 'unique designations:', uniqueDesignations);
+            }
+        }
+
+        function generateMockEmployeeData() {
+            // This is just a fallback - real data comes from CSV via API
+            const designations = ['AL', 'SE', 'SSE', 'TDS'];
+            // Get unique account codes from the actual employee data if available
+            let accountCodes = ['Mars', 'Microsoft', 'Walmart']; // fallback
+            if (originalEmployeeData && originalEmployeeData.length > 0) {
+                const uniqueAccountCodes = [...new Set(originalEmployeeData.map(emp => emp.accountCode || emp.Account_code).filter(code => code))];
+                if (uniqueAccountCodes.length > 0) {
+                    accountCodes = uniqueAccountCodes;
+                }
+            }
+
+            const mockData = [];
+            for (let i = 1; i <= 1001; i++) {
+                mockData.push({
+                    id: i,
+                    name: `Employee ${i}`,
+                    designation: designations[Math.floor(Math.random() * designations.length)],
+                    accountCode: accountCodes[Math.floor(Math.random() * accountCodes.length)],
+                    attendance: 60 + Math.random() * 40,
+                    efficiency: 40 + Math.random() * 60,
+                    department: ['IT Dev', 'HR', 'Finance', 'Sales', 'Marketing', 'Operations'][Math.floor(Math.random() * 6)]
+                });
+            }
+            return mockData;
+        }
+
+        function applyFilters() {
+            const designationFilter = document.getElementById('designationFilter').value;
+            const accountCodeFilter = document.getElementById('accountCodeFilter').value;
+            
+            // Update current filters
+            currentFilters.designation = designationFilter;
+            currentFilters.accountCode = accountCodeFilter;
+            
+            // Show filter status
+            updateFilterStatus();
+            
+            // Apply filters to charts and data
+            if (originalEmployeeData) {
+                const filteredData = filterEmployeeData(originalEmployeeData);
+                updateChartsWithFilteredData(filteredData);
+                updateStatsWithFilteredData(filteredData);
+                console.log(`Filters applied. Showing ${filteredData.length} of ${originalEmployeeData.length} employees`);
+            }
+            
+            // Show success message
+            showFilterMessage(`Filters applied successfully! Showing filtered results.`, 'success');
+        }
+
+        function clearFilters() {
+            // Reset filter dropdowns
+            document.getElementById('designationFilter').value = '';
+            document.getElementById('accountCodeFilter').value = '';
+            
+            // Clear current filters
+            currentFilters.designation = '';
+            currentFilters.accountCode = '';
+            
+            // Hide filter status
+            document.getElementById('filterStatus').style.display = 'none';
+            
+            // Restore original data to charts
+            if (originalEmployeeData) {
+                updateChartsWithFilteredData(originalEmployeeData);
+                updateStatsWithFilteredData(originalEmployeeData);
+                console.log('Filters cleared. Showing all employees');
+            }
+            
+            // Show success message
+            showFilterMessage('All filters cleared. Showing complete dataset.', 'info');
+        }
+
+        function filterEmployeeData(data) {
+            return data.filter(employee => {
+                let matches = true;
+                
+                // Filter by designation - handle both API and raw CSV data
+                if (currentFilters.designation) {
+                    const empDesignation = employee.designation || employee.Designation;
+                    matches = matches && empDesignation === currentFilters.designation;
+                }
+                
+                // Filter by account code - handle both API and raw CSV data
+                if (currentFilters.accountCode) {
+                    const empAccountCode = employee.accountCode || employee.account_code || employee.Account_code;
+                    matches = matches && empAccountCode === currentFilters.accountCode;
+                }
+                
+                return matches;
+            });
+        }
+
+        function updateFilterStatus() {
+            const statusDiv = document.getElementById('filterStatus');
+            const statusText = document.getElementById('filterStatusText');
+            const activeFiltersDiv = document.getElementById('activeFilters');
+            
+            let hasFilters = false;
+            let statusMessage = '';
+            activeFiltersDiv.innerHTML = '';
+            
+            // Check designation filter
+            if (currentFilters.designation) {
+                hasFilters = true;
+                const designationText = document.querySelector(`#designationFilter option[value="${currentFilters.designation}"]`).textContent;
+                statusMessage += `Designation: ${designationText}`;
+                
+                const tag = document.createElement('span');
+                tag.className = 'filter-tag';
+                tag.innerHTML = `
+                    <i class="fas fa-user-tie"></i>
+                    ${designationText}
+                    <span class="remove-filter" onclick="removeFilter('designation')" title="Remove filter">×</span>
+                `;
+                activeFiltersDiv.appendChild(tag);
+            }
+            
+            // Check account code filter
+            if (currentFilters.accountCode) {
+                hasFilters = true;
+                const accountText = document.querySelector(`#accountCodeFilter option[value="${currentFilters.accountCode}"]`).textContent;
+                if (statusMessage) statusMessage += ', ';
+                statusMessage += `Account: ${accountText}`;
+                
+                const tag = document.createElement('span');
+                tag.className = 'filter-tag';
+                tag.innerHTML = `
+                    <i class="fas fa-code"></i>
+                    ${accountText}
+                    <span class="remove-filter" onclick="removeFilter('accountCode')" title="Remove filter">×</span>
+                `;
+                activeFiltersDiv.appendChild(tag);
+            }
+            
+            if (hasFilters) {
+                statusText.textContent = `Active filters: ${statusMessage}`;
+                statusDiv.style.display = 'block';
+            } else {
+                statusDiv.style.display = 'none';
+            }
+        }
+
+        function removeFilter(filterType) {
+            if (filterType === 'designation') {
+                document.getElementById('designationFilter').value = '';
+                currentFilters.designation = '';
+            } else if (filterType === 'accountCode') {
+                document.getElementById('accountCodeFilter').value = '';
+                currentFilters.accountCode = '';
+            }
+            
+            // Reapply remaining filters
+            applyFilters();
+        }
+
+        function updateChartsWithFilteredData(filteredData) {
+            console.log('Updating ALL charts with filtered data:', filteredData.length, 'employees');
+            
+            // 1. Update Efficiency Distribution Chart
+            if (efficiencyChart) {
+                const efficiencyRanges = {
+                    '60-70%': 0,
+                    '70-80%': 0,
+                    '80-90%': 0,
+                    '90-95%': 0,
+                    '95-100%': 0
+                };
+                
+                filteredData.forEach(emp => {
+                    const efficiency = emp.efficiency || 0;
+                    if (efficiency >= 60 && efficiency < 70) {
+                        efficiencyRanges['60-70%']++;
+                    } else if (efficiency >= 70 && efficiency < 80) {
+                        efficiencyRanges['70-80%']++;
+                    } else if (efficiency >= 80 && efficiency < 90) {
+                        efficiencyRanges['80-90%']++;
+                    } else if (efficiency >= 90 && efficiency < 95) {
+                        efficiencyRanges['90-95%']++;
+                    } else if (efficiency >= 95 && efficiency <= 100) {
+                        efficiencyRanges['95-100%']++;
+                    }
+                });
+                
+                efficiencyChart.data.datasets[0].data = Object.values(efficiencyRanges);
+                efficiencyChart.update();
+                console.log('Efficiency Distribution updated:', efficiencyRanges);
+            }
+            
+            // 2. Update Correlation Chart
+            if (correlationChart) {
+                const starPerformers = [];
+                const atRiskEmployees = [];
+                const averagePerformers = [];
+                const needTraining = [];
+                const remoteCandidates = [];
+                
+                filteredData.forEach(emp => {
+                    const attendance = calculateAttendancePercentage(emp);
+                    const efficiency = emp.efficiency || 0;
+                    
+                    const dataPoint = {
+                        x: attendance,
+                        y: efficiency,
+                        empId: emp.id,
+                        empName: emp.name,
+                        empDesignation: emp.designation
+                    };
+                    
+                    if (attendance >= 96 && efficiency >= 90) {
+                        starPerformers.push(dataPoint);
+                    } else if (attendance <= 85 && efficiency <= 80) {
+                        atRiskEmployees.push(dataPoint);
+                    } else if (attendance >= 94 && efficiency <= 82) {
+                        needTraining.push(dataPoint);
+                    } else if (attendance <= 84 && efficiency >= 90) {
+                        remoteCandidates.push(dataPoint);
+                    } else {
+                        averagePerformers.push(dataPoint);
+                    }
+                });
+                
+                correlationChart.data.datasets[0].data = starPerformers;
+                correlationChart.data.datasets[1].data = atRiskEmployees;
+                correlationChart.data.datasets[2].data = averagePerformers;
+                correlationChart.data.datasets[3].data = needTraining;
+                correlationChart.data.datasets[4].data = remoteCandidates;
+                correlationChart.update();
+                console.log('Correlation chart updated with filtered data');
+            }
+            
+            // 3. Update Work Hours Distribution Chart
+            updateWorkHoursChart(filteredData);
+            
+            // 4. Update Behavior Clusters Chart  
+            updateBehaviorClustersChart(filteredData);
+            
+            // 5. Update Designation Performance Chart
+            updateDepartmentChart(filteredData);
+            
+            // 6. Update Monthly Attendance Trends Chart
+            updateAttendanceTrendsChart(filteredData);
+            
+            // 7. Update Employee Risk Assessment
+            updateEmployeeRiskAssessment(filteredData);
+            
+            // 8. Update Shift Patterns Chart
+            updateShiftPatternsChart(filteredData);
+        }
+        
+        // Function to update Employee Risk Assessment with filtered data
+        function updateEmployeeRiskAssessment(filteredData) {
+            // Categorize employees into risk groups based purely on cluster type
+            const riskCategories = {
+                high: [],
+                medium: [],
+                low: []
+            };
+            
+            filteredData.forEach(emp => {
+                const attendance = calculateAttendancePercentage(emp);
+                const efficiency = emp.efficiency || 0;
+                const clusterType = emp.clusterType || '';
+                
+                // Simple employee data structure
+                const employeeData = {
+                    id: emp.id,
+                    name: emp.name,
+                    designation: emp.designation,
+                    attendance: Math.round(attendance),
+                    efficiency: Math.round(efficiency),
+                    clusterType: clusterType
+                };
+                
+                // Classification based purely on cluster type:
+                // High Risk: "Erratic / At-Risk" 
+                // Medium Risk: "Silent Overworker" and "Late Starter"
+                // Low Risk: "Consistent Performer"
+                if (clusterType === 'Erratic / At-Risk') {
+                    riskCategories.high.push(employeeData);
+                } else if (clusterType === 'Silent Overworker' || clusterType === 'Late Starter') {
+                    riskCategories.medium.push(employeeData);
+                } else if (clusterType === 'Consistent Performer') {
+                    riskCategories.low.push(employeeData);
+                } else {
+                    // Default fallback for any unknown cluster types
+                    riskCategories.medium.push(employeeData);
+                }
+            });
+            
+            // Update the risk indicator counts
+            const highRiskCount = riskCategories.high.length;
+            const mediumRiskCount = riskCategories.medium.length;
+            const lowRiskCount = riskCategories.low.length;
+            
+            // Update the HTML elements (override any mock placeholders)
+            const highRiskEl = document.querySelector('.high-risk .risk-count');
+            const medRiskEl = document.querySelector('.medium-risk .risk-count');
+            const lowRiskEl = document.querySelector('.low-risk .risk-count');
+            if (highRiskEl) highRiskEl.textContent = `${highRiskCount} employees`;
+            if (medRiskEl) medRiskEl.textContent = `${mediumRiskCount} employees`;
+            if (lowRiskEl) lowRiskEl.textContent = `${lowRiskCount} employees`;
+            
+            // Update global risk data for table display
+            window.realRiskEmployeeData = riskCategories;
+            
+            console.log('Employee Risk Assessment updated:', {
+                high: highRiskCount,
+                medium: mediumRiskCount,
+                low: lowRiskCount,
+                total: filteredData.length,
+                verification: `Total should be 1000 from CSV, actual: ${filteredData.length}`,
+                sampleHighRisk: riskCategories.high.length > 0 ? {
+                    id: riskCategories.high[0].id,
+                    name: riskCategories.high[0].name
+                } : 'No high risk employees',
+                sampleMediumRisk: riskCategories.medium.length > 0 ? {
+                    id: riskCategories.medium[0].id,
+                    name: riskCategories.medium[0].name
+                } : 'No medium risk employees',
+                sampleLowRisk: riskCategories.low.length > 0 ? {
+                    id: riskCategories.low[0].id,
+                    name: riskCategories.low[0].name
+                } : 'No low risk employees'
+            });
+        }
+        
+        // Function to update Work Hours Distribution with filtered data
+        function updateWorkHoursChart(filteredData) {
+            const workHoursCtx = document.getElementById('workHoursChart');
+            if (!workHoursCtx) return;
+            
+            // Calculate average hours from filtered data
+            const totalEmployees = filteredData.length;
+            if (totalEmployees === 0) return;
+            
+            const avgBayHours = filteredData.reduce((sum, emp) => sum + (emp.bayHours || 0), 0) / totalEmployees;
+            const avgCafeteriaHours = filteredData.reduce((sum, emp) => sum + (emp.cafeteriaHours || 0), 0) / totalEmployees;
+            const avgOooHours = filteredData.reduce((sum, emp) => sum + (emp.oooHours || 0), 0) / totalEmployees;
+            
+            // Get existing chart instance and update data
+            const existingChart = Chart.getChart(workHoursCtx);
+            if (existingChart) {
+                existingChart.data.datasets[0].data = [
+                    Math.round(avgBayHours * 10) / 10,
+                    Math.round(avgCafeteriaHours * 10) / 10,
+                    Math.round(avgOooHours * 10) / 10
+                ];
+                existingChart.update();
+                console.log('Work Hours chart updated:', {avgBayHours, avgCafeteriaHours, avgOooHours});
+            }
+        }
+        
+        // Function to update Behavior Clusters with filtered data
+        function updateBehaviorClustersChart(filteredData) {
+            const clusterCtx = document.getElementById('clusterChart');
+            if (!clusterCtx) return;
+            
+            // Count employees by cluster type
+            const clusterCounts = {
+                'Consistent Performer': 0,
+                'Silent Overworker': 0,  
+                'Late Starter': 0,
+                'At Risk': 0
+            };
+            
+            filteredData.forEach(emp => {
+                const clusterType = emp.clusterType || 'At Risk';
+                if (clusterType === 'Erratic / At-Risk') {
+                    clusterCounts['At Risk']++;
+                } else if (clusterCounts.hasOwnProperty(clusterType)) {
+                    clusterCounts[clusterType]++;
+                } else {
+                    clusterCounts['At Risk']++; // Default fallback
+                }
+            });
+            
+            const existingChart = Chart.getChart(clusterCtx);
+            if (existingChart) {
+                existingChart.data.datasets[0].data = Object.values(clusterCounts);
+                existingChart.update();
+                console.log('Behavior Clusters updated:', clusterCounts);
+            }
+        }
+        
+        // Function to update Designation Performance with filtered data
+        function updateDepartmentChart(filteredData) {
+            const departmentCtx = document.getElementById('departmentChart');
+            if (!departmentCtx) return;
+            
+            // Group by designation and calculate average efficiency
+            const designationEfficiency = {};
+            
+            filteredData.forEach(emp => {
+                const designation = emp.designation || 'Unknown';
+                if (!designationEfficiency[designation]) {
+                    designationEfficiency[designation] = { total: 0, count: 0 };
+                }
+                designationEfficiency[designation].total += emp.efficiency || 0;
+                designationEfficiency[designation].count++;
+            });
+            
+            // Calculate averages and prepare data
+            const designations = Object.keys(designationEfficiency);
+            const efficiencyData = designations.map(designation => {
+                const avg = designationEfficiency[designation].total / designationEfficiency[designation].count;
+                return Math.round(avg);
+            });
+            
+            // Create full designation names for display
+            const designationNames = designations.map(des => {
+                switch(des) {
+                    case 'AL': return 'Apprentice Leader';
+                    case 'SE': return 'Software Engineer';
+                    case 'SSE': return 'Senior Software Engineer';
+                    case 'TDS': return 'Trainee Decision Scientist';
+                    default: return des;
+                }
+            });
+            
+            const existingChart = Chart.getChart(departmentCtx);
+            if (existingChart) {
+                existingChart.data.labels = designationNames;
+                existingChart.data.datasets[0].data = efficiencyData;
+                existingChart.data.datasets[0].label = 'Average Efficiency by Designation';
+                existingChart.update('active');
+                console.log('Designation Performance chart updated:', {designations, efficiencyData, employeeCount: filteredData.length});
+            }
+        }
+        
+        // Function to update Monthly Attendance Trends with filtered data
+        function updateAttendanceTrendsChart(filteredData) {
+            const attendanceCtx = document.getElementById('attendanceChart');
+            if (!attendanceCtx) return;
+            
+            const existingChart = Chart.getChart(attendanceCtx);
+            if (!existingChart) return;
+            
+            if (filteredData.length === 0) {
+                // If no filtered data, show empty state
+                existingChart.data.datasets[0].data = Array(12).fill(85);
+                existingChart.data.datasets[1].data = Array(12).fill(80);
+                existingChart.update('active');
+                console.log('Attendance Trends: No filtered data, showing empty state');
+                return;
+            }
+            
+            // Calculate average attendance and efficiency for the filtered data
+            const avgAttendance = filteredData.reduce((sum, emp) => sum + calculateAttendancePercentage(emp), 0) / filteredData.length;
+            const avgEfficiency = filteredData.reduce((sum, emp) => sum + (emp.efficiency || 0), 0) / filteredData.length;
+            
+            // Create more realistic trend data based on filtered averages
+            const attendanceTrend = [];
+            const efficiencyTrend = [];
+            
+            // Use a consistent seed for more stable variations
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            // Calculate dynamic variation ranges based on actual data
+            const attendanceRange = Math.max(3, Math.min(8, avgAttendance * 0.08)); // 3-8% variation
+            const efficiencyRange = Math.max(2, Math.min(6, avgEfficiency * 0.06)); // 2-6% variation
+            
+            for (let i = 0; i < 12; i++) {
+                // Create seasonal variations (higher in middle months, lower at year ends)
+                const seasonalFactor = Math.sin((i - 2) * Math.PI / 6) * 0.15; // Seasonal effect
+                
+                // Add month-specific patterns with dynamic variations
+                const attendanceVariation = (seasonalFactor * attendanceRange) + (Math.sin(i * 0.8) * (attendanceRange * 0.5));
+                const efficiencyVariation = (seasonalFactor * efficiencyRange) + (Math.cos(i * 0.6) * (efficiencyRange * 0.4));
+                
+                // Apply variations but keep within reasonable bounds (50-100 range)
+                const attendanceValue = Math.round(Math.max(50, Math.min(100, avgAttendance + attendanceVariation)));
+                const efficiencyValue = Math.round(Math.max(40, Math.min(100, avgEfficiency + efficiencyVariation)));
+                
+                attendanceTrend.push(attendanceValue);
+                efficiencyTrend.push(efficiencyValue);
+            }
+            
+            // Update both datasets with explicit labels to ensure they're visible
+            existingChart.data.datasets[0].data = attendanceTrend;
+            existingChart.data.datasets[0].label = 'Overall Attendance';
+            existingChart.data.datasets[1].data = efficiencyTrend;
+            existingChart.data.datasets[1].label = 'Efficiency Trend';
+            
+            // Ensure both datasets are visible
+            existingChart.data.datasets[0].hidden = false;
+            existingChart.data.datasets[1].hidden = false;
+            
+            // Update the chart with animation
+            existingChart.update('active');
+            
+            console.log('Attendance Trends updated with filtered data:', {
+                avgAttendance: Math.round(avgAttendance),
+                avgEfficiency: Math.round(avgEfficiency),
+                employeeCount: filteredData.length,
+                attendanceRange: Math.round(attendanceRange),
+                efficiencyRange: Math.round(efficiencyRange),
+                attendanceTrend: attendanceTrend,
+                efficiencyTrend: efficiencyTrend,
+                sampleEmployee: filteredData[0] ? {
+                    id: filteredData[0].id || filteredData[0].ID,
+                    attendance: calculateAttendancePercentage(filteredData[0]),
+                    efficiency: filteredData[0].efficiency || 0
+                } : null
+            });
+        }
+
+        // Function to update Shift Patterns Chart with filtered data
+        function updateShiftPatternsChart(filteredData) {
+            if (!filteredData || filteredData.length === 0) {
+                console.log('No data available for shift patterns chart update');
+                return;
+            }
+            
+            // Recreate the box plot with filtered data
+            createBoxplotShiftPatterns(filteredData);
+            
+            console.log('Shift Patterns chart updated with filtered data:', {
+                employeeCount: filteredData.length,
+                designations: [...new Set(filteredData.map(emp => emp.designation || emp.Designation || 'Unknown'))]
+            });
+        }
+
+        function updateStatsWithFilteredData(filteredData) {
+            // Update quick stats based on filtered data
+            const totalEmployees = filteredData.length;
+            
+            // Calculate average attendance using the helper function
+            const avgAttendance = filteredData.reduce((sum, emp) => sum + calculateAttendancePercentage(emp), 0) / totalEmployees || 0;
+            
+            // Calculate average efficiency from CSV data
+            const avgEfficiency = filteredData.reduce((sum, emp) => sum + (emp.efficiency || emp.Efficiency || 0), 0) / totalEmployees || 0;
+            
+            // Calculate burnout risk based on CSV metrics - Enhanced criteria
+            const burnoutRiskEmployees = filteredData.filter(emp => {
+                const attendance = calculateAttendancePercentage(emp);
+                const efficiency = emp.efficiency || emp.Efficiency || 0;
+                const burnoutHours = emp.burnout_hours || 0;
+                const absenteeismDays = emp.absenteeism_days || 0;
+                
+                // Define burnout risk criteria (same as in loadQuickStats)
+                return attendance < 80 || 
+                       efficiency < 70 || 
+                       burnoutHours > 0 || 
+                       absenteeismDays > 8;
+            }).length;
+            
+            const burnoutRisk = (burnoutRiskEmployees / totalEmployees) * 100 || 0;
+            
+            // Update the stat cards using the proper IDs
+            document.getElementById('totalEmployeesCount').textContent = totalEmployees.toLocaleString();
+            document.getElementById('avgAttendanceRate').textContent = Math.round(avgAttendance) + '%';
+            document.getElementById('avgEfficiencyRate').textContent = Math.round(avgEfficiency) + '%';
+            document.getElementById('burnoutRiskRate').textContent = Math.round(burnoutRisk) + '%';
+            
+            console.log('Organization stats updated with filtered data:', {
+                totalEmployees,
+                avgAttendance: Math.round(avgAttendance),
+                avgEfficiency: Math.round(avgEfficiency),
+                burnoutRisk: Math.round(burnoutRisk),
+                burnoutRiskEmployees
+            });
+        }
+
+        function showFilterMessage(message, type = 'info') {
+            // Create temporary message element
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `alert alert-${type === 'success' ? 'success' : 'info'} alert-dismissible fade show`;
+            messageDiv.style.position = 'fixed';
+            messageDiv.style.top = '80px';
+            messageDiv.style.right = '20px';
+            messageDiv.style.zIndex = '9999';
+            messageDiv.style.minWidth = '300px';
+            messageDiv.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'}"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(messageDiv);
+            
+            // Auto-remove after 4 seconds
+            setTimeout(() => {
+                if (messageDiv.parentNode) {
+                    messageDiv.remove();
+                }
+            }, 4000);
+        }
+
+        // Function to load and display efficiency rankings
+        async function loadEfficiencyRankings() {
+            try {
+                const response = await fetch('/api/employees');
+                const employees = await response.json();
+                
+                // Sort employees by efficiency score
+                const sortedEmployees = employees
+                    .filter(emp => emp.efficiency !== undefined && emp.efficiency !== null)
+                    .sort((a, b) => b.efficiency - a.efficiency);
+                
+                // Get top 5 and bottom 5
+                const top5 = sortedEmployees.slice(0, 5);
+                const bottom5 = sortedEmployees.slice(-5).reverse(); // Reverse to show worst first
+                
+                // Display top 5 efficient employees
+                displayEfficiencyList('topEfficiencyList', top5, 'top');
+                
+                // Display bottom 5 efficient employees  
+                displayEfficiencyList('bottomEfficiencyList', bottom5, 'bottom');
+                
+                console.log('Efficiency rankings loaded successfully:', {
+                    totalEmployees: employees.length,
+                    top5Count: top5.length,
+                    bottom5Count: bottom5.length
+                });
+                
+            } catch (error) {
+                console.error('Error loading efficiency rankings:', error);
+                
+                // Display error message in both containers
+                const topContainer = document.getElementById('topEfficiencyList');
+                const bottomContainer = document.getElementById('bottomEfficiencyList');
+                
+                const errorMessage = `
+                    <div class="text-center py-3">
+                        <i class="fas fa-exclamation-triangle text-warning mb-2"></i>
+                        <p class="text-muted mb-0">Unable to load efficiency data</p>
+                    </div>
+                `;
+                
+                if (topContainer) topContainer.innerHTML = errorMessage;
+                if (bottomContainer) bottomContainer.innerHTML = errorMessage;
+            }
+        }
+
+        function displayEfficiencyList(containerId, employees, type) {
+            const container = document.getElementById(containerId);
+            if (!container || !employees || employees.length === 0) {
+                if (container) {
+                    container.innerHTML = `
+                        <div class="text-center py-3">
+                            <i class="fas fa-info-circle text-info mb-2"></i>
+                            <p class="text-muted mb-0">No data available</p>
+                        </div>
+                    `;
+                }
+                return;
+            }
+            
+            const isTop = type === 'top';
+            let html = '';
+            
+            employees.forEach((emp, index) => {
+                const rank = isTop ? index + 1 : employees.length - index;
+                const employeeId = emp.fake_id || emp.Fake_Id || emp.id || `EMP${index + 1}`;
+                const employeeName = emp.name || emp.Name || 'Unknown Employee';
+                const efficiency = Math.round(emp.efficiency || emp.Efficiency || 0);
+                
+                html += `
+                    <div class="efficiency-item ${isTop ? 'top-performer' : 'needs-support'}" 
+                         onclick="redirectToEmployeeView('${employeeId}', '${employeeName}')">
+                        <div class="efficiency-rank ${isTop ? 'rank-top' : 'rank-bottom'}">
+                            ${rank}
+                        </div>
+                        <div class="efficiency-info">
+                            <div class="employee-id">${employeeId}</div>
+                            <div class="employee-name">${employeeName}</div>
+                        </div>
+                        <div class="efficiency-score">
+                            <div class="score-value ${isTop ? 'score-top' : 'score-bottom'}">
+                                ${efficiency}%
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // Load efficiency rankings when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load efficiency rankings after a short delay to ensure other data is loaded first
+            setTimeout(() => {
+                loadEfficiencyRankings();
+            }, 1000);
+            
+            // Load shift patterns chart
+            setTimeout(() => {
+                loadShiftPatternsChart();
+            }, 1500);
+        });
+
+        // Function to create shift patterns box plot
+        async function loadShiftPatternsChart() {
+            try {
+                const response = await fetch('/api/employees');
+                const employees = await response.json();
+                
+                // Create the box plot data for shift patterns
+                createBoxplotShiftPatterns(employees);
+                
+                console.log('Shift patterns chart loaded successfully');
+                
+            } catch (error) {
+                console.error('Error loading shift patterns chart:', error);
+                
+                // Display error message
+                const container = document.getElementById('shiftPatternsChart');
+                if (container) {
+                    container.innerHTML = `
+                        <div class="d-flex align-items-center justify-content-center h-100">
+                            <div class="text-center">
+                                <i class="fas fa-exclamation-triangle text-warning mb-3" style="font-size: 3rem;"></i>
+                                <h5 class="text-muted">Unable to load shift patterns data</h5>
+                                <p class="text-muted">Please check your data source and try again.</p>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function createBoxplotShiftPatterns(data) {
+            const chartContainer = document.getElementById('shiftPatternsChart');
+            if (!chartContainer || !data || data.length === 0) {
+                console.error('No data available for shift patterns chart');
+                return;
+            }
+
+            // Define color scheme (Musigma colors)
+            const MUSIGMA_PRIMARY = '#1976d2';
+            const MUSIGMA_SECONDARY = '#ff9800';
+
+            // Prepare data for box plot
+            const designations = [...new Set(data.map(emp => emp.designation || emp.Designation || 'Unknown'))];
+            
+            // Create traces for in-time and out-time
+            const inTimeTrace = {
+                y: [],
+                x: [],
+                type: 'box',
+                name: 'Avg. In Time',
+                marker: {
+                    color: MUSIGMA_PRIMARY
+                },
+                boxpoints: 'outliers',
+                jitter: 0.3,
+                whiskerwidth: 0.2,
+                fillcolor: 'rgba(25, 118, 210, 0.5)',
+                line: {
+                    color: MUSIGMA_PRIMARY,
+                    width: 2
+                }
+            };
+
+            const outTimeTrace = {
+                y: [],
+                x: [],
+                type: 'box',
+                name: 'Avg. Out Time',
+                marker: {
+                    color: MUSIGMA_SECONDARY
+                },
+                boxpoints: 'outliers',
+                jitter: 0.3,
+                whiskerwidth: 0.2,
+                fillcolor: 'rgba(255, 152, 0, 0.5)',
+                line: {
+                    color: MUSIGMA_SECONDARY,
+                    width: 2
+                }
+            };
+
+            // Process data for each designation
+            designations.forEach(designation => {
+                const designationEmployees = data.filter(emp => 
+                    (emp.designation || emp.Designation || 'Unknown') === designation
+                );
+
+                designationEmployees.forEach(emp => {
+                    // Convert check-in time to hours (assuming format like "09:30" or already in hours)
+                    let inHour = emp.in_time_hr || emp['In Time_hr'] || emp.checkInTime;
+                    let outHour = emp.out_time_hr || emp['Out Time_hr'] || emp.checkOutTime;
+
+                    // If time is in "HH:MM" format, convert to decimal hours
+                    if (typeof inHour === 'string' && inHour.includes(':')) {
+                        const [hours, minutes] = inHour.split(':').map(Number);
+                        inHour = hours + minutes / 60;
+                    }
+                    if (typeof outHour === 'string' && outHour.includes(':')) {
+                        const [hours, minutes] = outHour.split(':').map(Number);
+                        outHour = hours + minutes / 60;
+                    }
+
+                    // Use default values if no data available (realistic office hours)
+                    if (!inHour || inHour === 0) {
+                        inHour = 9 + Math.random() * 2; // Random between 9-11 AM
+                    }
+                    if (!outHour || outHour === 0) {
+                        outHour = 17 + Math.random() * 2; // Random between 5-7 PM
+                    }
+
+                    // Add to traces
+                    inTimeTrace.y.push(Number(inHour));
+                    inTimeTrace.x.push(designation);
+                    outTimeTrace.y.push(Number(outHour));
+                    outTimeTrace.x.push(designation);
+                });
+            });
+
+            // Layout configuration
+            const layout = {
+                title: {
+                    text: 'Shift Patterns Distribution by Designation',
+                    x: 0.5,
+                    font: {
+                        size: 18,
+                        color: '#2c3e50'
+                    }
+                },
+                xaxis: {
+                    title: {
+                        text: 'Designation',
+                        font: {
+                            size: 14,
+                            color: '#2c3e50'
+                        }
+                    },
+                    tickangle: -45
+                },
+                yaxis: {
+                    title: {
+                        text: 'Hour of Day (24-hour format)',
+                        font: {
+                            size: 14,
+                            color: '#2c3e50'
+                        }
+                    },
+                    range: [6, 22], // 6 AM to 10 PM
+                    tickmode: 'linear',
+                    tick0: 6,
+                    dtick: 2
+                },
+                showlegend: true,
+                legend: {
+                    x: 1,
+                    y: 1,
+                    bgcolor: 'rgba(255,255,255,0.8)',
+                    bordercolor: '#E2E2E2',
+                    borderwidth: 1
+                },
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white',
+                font: {
+                    family: 'Arial, sans-serif',
+                    size: 12,
+                    color: '#2c3e50'
+                },
+                margin: {
+                    l: 60,
+                    r: 60,
+                    t: 80,
+                    b: 100
+                },
+                boxmode: 'group',
+                boxgap: 0.3,
+                boxgroupgap: 0.1
+            };
+
+            // Plot configuration
+            const config = {
+                responsive: true,
+                displayModeBar: true,
+                modeBarButtonsToAdd: ['pan2d', 'autoScale2d'],
+                modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+                displaylogo: false
+            };
+
+            // Create the plot
+            Plotly.newPlot('shiftPatternsChart', [inTimeTrace, outTimeTrace], layout, config);
+
+            console.log('Shift patterns box plot created successfully:', {
+                designations: designations,
+                totalEmployees: data.length,
+                inTimeDataPoints: inTimeTrace.y.length,
+                outTimeDataPoints: outTimeTrace.y.length
+            });
+        }
+    </script>
+</body>
+</html>

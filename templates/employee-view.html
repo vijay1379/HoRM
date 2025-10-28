@@ -1,0 +1,2028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee View - Attendance Analyzer</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- PDF Generation Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- Fuzzy Search Library -->
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js/dist/fuse.js"></script>
+    
+    <!-- Recommendations Styles -->
+    <style>
+        .recommendation-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 15px;
+            margin-bottom: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+            transition: all 0.3s ease;
+        }
+        
+        .recommendation-item:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            background: #ffffff;
+        }
+        
+        .recommendation-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            background: rgba(0, 123, 255, 0.1);
+            flex-shrink: 0;
+        }
+        
+        .recommendation-icon i {
+            font-size: 18px;
+            color: #007bff;
+        }
+        
+        .recommendation-content {
+            flex-grow: 1;
+        }
+        
+        .recommendation-content h6 {
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 0.95rem;
+        }
+        
+        .recommendation-content p {
+            margin: 0;
+            color: #6c757d;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+        
+        #refreshRecommendations {
+            transition: all 0.3s ease;
+        }
+        
+        #refreshRecommendations:hover {
+            opacity: 0.8;
+        }
+        
+        .spinner-border {
+            width: 2rem;
+            height: 2rem;
+        }
+        
+        #recommendationsLoading p {
+            font-size: 0.9rem;
+            margin: 0;
+        }
+        
+        /* Autocomplete Dropdown Styles */
+        .autocomplete-container {
+            position: relative;
+        }
+        
+        .autocomplete-dropdown {
+            position: fixed;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 0.375rem 0.375rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 9999;
+            display: none;
+            min-width: 200px;
+        }
+        
+        .autocomplete-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f8f9fa;
+            transition: background-color 0.1s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        
+        .autocomplete-item:hover,
+        .autocomplete-item.highlighted {
+            background-color: #e9ecef;
+        }
+        
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        
+        .autocomplete-name {
+            font-weight: 600;
+            color: #495057;
+            font-size: 0.9rem;
+        }
+        
+        .autocomplete-details {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 0.2rem;
+        }
+        
+        .autocomplete-match {
+            background-color: #fff3cd;
+            padding: 0.1rem 0.2rem;
+            border-radius: 0.2rem;
+        }
+        
+        .no-results {
+            padding: 1rem;
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body class="dashboard-page">
+    <!-- Top Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top shadow-sm">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand fw-bold text-primary" href="index.html">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Attendance Analyzer" class="logo-image me-2">
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="topNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="employee-view.html">Employee View</a></li>
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item d-flex align-items-center">
+                        <span class="nav-link me-2">
+                            <i class="fas fa-user-circle"></i> Admin
+                        </span>
+                        <a class="nav-link" href="/logout" title="Logout">
+                            <i class="fas fa-sign-out-alt"></i>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid content-offset">
+        <!-- Employee View Content -->
+        <div class="dashboard-content p-4">
+            <!-- Search Card -->
+            <div class="card mb-4 search-card">
+                <div class="card-body">
+                    <form id="employeeSearchForm">
+                        <div class="row g-3">
+                            <div class="col-12 col-md-7 col-lg-8 col-xl-9">
+                                <label for="employeeSearchInput" class="form-label fw-semibold">Search by Employee ID or Name</label>
+                                <div class="autocomplete-container">
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-white"><i class="fas fa-search text-primary"></i></span>
+                                        <input id="employeeSearchInput" type="text" class="form-control border-start-0" placeholder="Enter Employee ID or Name (e.g., 1 or Drew Lewis)" autocomplete="off">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-5 col-lg-4 col-xl-3">
+                                <label class="form-label fw-semibold d-none d-md-block">&nbsp;</label>
+                                <button class="btn btn-primary w-100" type="submit">
+                                    <i class="fas fa-search me-2"></i>Search
+                                </button>
+                            </div>
+                            <div class="col-12">
+                                <div id="searchStatus" class="text-muted small"></div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h1 class="mb-0">Employee Profile</h1>
+                        <p class="text-muted">Detailed performance and wellbeing analytics for selected employee.</p>
+                    </div>
+                    <button id="downloadReportBtn" class="btn btn-primary" onclick="downloadEmployeeReport()">
+                        <i class="fas fa-download me-2"></i>Download Report
+                    </button>
+                </div>
+
+                <div class="row">
+                    <!-- Default message when no employee is selected -->
+                    <div id="noEmployeeMessage" class="col-12 text-center">
+                        <div class="card bento-card p-5">
+                            <div class="mb-4">
+                                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                                <h3 class="text-muted">Search for an Employee</h3>
+                                <p class="text-muted">Enter an Employee ID (e.g., 1, 2, 3) or name (e.g., Drew Lewis, Avery Martinez) in the search box above to view their detailed profile and performance analytics.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Left Column - Profile Info Only -->
+                    <div class="col-md-4 col-lg-3 mb-4">
+                        <div id="profileSection" class="profile-card" style="display: none;">
+                            <div class="profile-image-container">
+                                <div class="profile-image">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <div class="status-indicator online"></div>
+                            </div>
+                            <div class="profile-info text-center">
+                                <h2 id="empName">John Doe</h2>
+                                <p id="empDesignation" class="designation">Senior Software Engineer</p>
+                                <p id="empId" class="employee-id">ID: 789012</p>
+                            </div>
+                            
+                            <!-- Quick Stats Section -->
+                            <div class="profile-quick-stats">
+                                <div class="quick-stat-item">
+                                    <div class="stat-label">Today's Status</div>
+                                    <div class="stat-value">
+                                        <span class="status-badge online">Present</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="quick-stat-item">
+                                    <div class="stat-label">This Month</div>
+                                    <div class="stat-value">
+                                        <span id="profileAttendance">22/23 days</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="quick-stat-item">
+                                    <div class="stat-label">Account Code</div>
+                                    <div class="stat-value">
+                                        <span id="profileAccount">Default</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column - Metrics & Performance -->
+                    <div class="col-md-8 col-lg-9">
+                        <div id="performanceSection" style="display: none;">
+                        <!-- Top Row - Efficiency & Cluster Cards -->
+                        <div class="row mb-4">
+                            <!-- Performance Score Card -->
+                            <div class="col-md-6 d-flex">
+                                <div class="card metrics-card bento-card w-100">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Performance Score</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-5 text-center">
+                                                <div class="metric-box">
+                                                    <div id="empScore" class="score">85</div>
+                                                    <div id="empTrend" class="trend positive">
+                                                        <i class="fas fa-arrow-up"></i> <span class="trend-text">+5%</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-7">
+                                                <canvas id="performanceRadarChart" style="max-height: 180px;"></canvas>
+                                            </div>
+                                        </div>
+                                        <hr>
+                                        <div class="key-metrics">
+                                            <div class="metric-item">
+                                                <span class="label">Efficiency</span>
+                                                <span id="metricEfficiency" class="value">92%</span>
+                                            </div>
+                                            <div class="metric-item">
+                                                <span class="label">Attendance</span>
+                                                <span id="metricAttendance" class="value">95%</span>
+                                            </div>
+                                            <div class="metric-item">
+                                                <span class="label">Bay Hours</span>
+                                                <span id="metricBayHours" class="value">7.5 hrs</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Behavior Cluster Card -->
+                            <div class="col-md-6 d-flex">
+                                <div class="card cluster-card bento-card w-100">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Behavior Cluster</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="cluster-matrix">
+                                            <div class="cluster-box cluster-green" data-cluster="1">
+                                                <div class="cluster-number">1</div>
+                                                <div class="cluster-name">Consistent Performer</div>
+                                            </div>
+                                            <div class="cluster-box cluster-orange" data-cluster="2">
+                                                <div class="cluster-number">2</div>
+                                                <div class="cluster-name">Silent Overworker</div>
+                                            </div>
+                                            <div class="cluster-box cluster-orange" data-cluster="3">
+                                                <div class="cluster-number">3</div>
+                                                <div class="cluster-name">Late Starter</div>
+                                            </div>
+                                            <div class="cluster-box cluster-red" data-cluster="4">
+                                                <div class="cluster-number">4</div>
+                                                <div class="cluster-name">Erratic / At-Risk</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Charts Row -->
+                        <div class="row mb-4">
+                            <!-- Work Hours Distribution -->
+                            <div class="col-md-6 d-flex">
+                                <div class="card bento-card w-100">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Work Hours Distribution</h5>
+                                        <p class="card-subtitle text-muted">Average daily hours distribution across different work locations and activities.</p>
+                                    </div>
+                                    <div class="card-body" style="height: 350px; display: flex; align-items: center;">
+                                        <div style="width: 100%; height: 300px; position: relative;">
+                                            <canvas id="workHoursChart" style="width: 100% !important; height: 300px !important; display: block;"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Employee Behavior Analysis -->
+                            <div class="col-md-6 d-flex">
+                                <div class="card bento-card w-100">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Employee Behavior Analysis</h5>
+                                        <p class="card-subtitle text-muted">Behavioral patterns including collaboration, focus time, break patterns, and work intensity.</p>
+                                    </div>
+                                    <div class="card-body" style="height: 350px; display: flex; align-items: center;">
+                                        <div style="width: 100%; height: 300px; position: relative;">
+                                            <canvas id="timeDistributionChart" style="width: 100% !important; height: 300px !important; display: block;"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Comparison Charts Row -->
+                        <div class="row mb-4">
+                            <!-- Account Comparison -->
+                            <div class="col-md-6 d-flex">
+                                <div class="card bento-card w-100">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Comparison with Account Average</h5>
+                                        <p class="card-subtitle text-muted">Employee's time distribution compared to others in the same account.</p>
+                                    </div>
+                                    <div class="card-body" style="height: 450px; display: flex; align-items: center;">
+                                        <div style="width: 100%; height: 400px; position: relative;">
+                                            <canvas id="accountComparisonChart" style="width: 100% !important; height: 400px !important; display: block;"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Designation Comparison -->
+                            <div class="col-md-6 d-flex">
+                                <div class="card bento-card w-100">
+                                    <div class="card-header">
+                                        <h5 class="card-title">Comparison with Designation Average</h5>
+                                        <p class="card-subtitle text-muted">Employee's time distribution compared to others with same designation.</p>
+                                    </div>
+                                    <div class="card-body" style="height: 450px; display: flex; align-items: center;">
+                                        <div style="width: 100%; height: 400px; position: relative;">
+                                            <canvas id="designationComparisonChart" style="width: 100% !important; height: 400px !important; display: block;"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Personalized Recommendations -->
+                        <div class="card bento-card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="card-title">Personalized Recommendations</h5>
+                                <button id="refreshRecommendations" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-sync-alt"></i> Refresh
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <!-- Loading state -->
+                                <div id="recommendationsLoading" class="text-center p-4" style="display: none;">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading recommendations...</span>
+                                    </div>
+                                    <p class="mt-2 text-muted">Generating personalized recommendations...</p>
+                                </div>
+                                
+                                <!-- Recommendations content -->
+                                <div id="recommendationsList" class="recommendations-list">
+                                    <!-- Dynamic recommendations will be loaded here -->
+                                </div>
+                                
+                                <!-- Error state -->
+                                <div id="recommendationsError" class="alert alert-warning" style="display: none;">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    Unable to load personalized recommendations. Please try again.
+                                </div>
+                            </div>
+                        </div>
+                        </div> <!-- End performanceSection -->
+                    </div>
+                </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script>
+        // Global variables
+        let employees = [];
+        let currentEmployee = null;
+        let workHoursChart, timeDistributionChart, performanceRadarChart, accountComparisonChart, designationComparisonChart;
+        let fuse = null; // Fuse.js instance for fuzzy search
+        let selectedIndex = -1; // For keyboard navigation
+        let isPositioning = false; // Flag to prevent multiple positioning calls
+
+        // Load employee data from API
+        async function loadEmployeeData() {
+            try {
+                const response = await fetch('/api/employees');
+                if (response.ok) {
+                    employees = await response.json();
+                    console.log('Loaded', employees.length, 'employees from CSV data');
+                    
+                    // Initialize Fuse.js for fuzzy search
+                    initializeFuseSearch();
+                    
+                    // Don't initialize with any employee - start with empty state
+                    hideEmployeeProfile();
+                } else {
+                    console.error('Failed to load employee data');
+                    // Fallback to mock data
+                    loadMockData();
+                }
+            } catch (error) {
+                console.error('Error loading employee data:', error);
+                // Fallback to mock data
+                loadMockData();
+            }
+        }
+
+        // Fallback mock data function
+        function loadMockData() {
+            employees = [
+                {
+                    id: '789012', name: 'John Doe', designation: 'Senior Software Engineer',
+                    efficiency: 92, attendance: 95, bayHours: 7.5, cafeteriaHours: 0.5, oooHours: 0.8,
+                    officeHours: 8.0, breakHours: 1.0, score: 85, trend: 5, 
+                    cluster: 1, clusterType: 'Consistent Performer', punctuality: 95,
+                    monthly: [82, 88, 85, 90, 85, 88, 92, 85, 80, 88, 85, 90]
+                },
+                {
+                    id: '123456', name: 'Sophia Bennett', designation: 'Software Engineer',
+                    efficiency: 88, attendance: 93, bayHours: 7.1, cafeteriaHours: 0.7, oooHours: 1.2,
+                    officeHours: 7.8, breakHours: 1.2, score: 83, trend: 3,
+                    cluster: 2, clusterType: 'Silent Overworker', punctuality: 92,
+                    monthly: [80, 84, 82, 86, 84, 86, 88, 84, 78, 85, 83, 86]
+                },
+                {
+                    id: '654321', name: 'Michael Chen', designation: 'TDS',
+                    efficiency: 90, attendance: 96, bayHours: 8.0, cafeteriaHours: 0.3, oooHours: 0.5,
+                    officeHours: 8.5, breakHours: 0.8, score: 89, trend: -2,
+                    cluster: 3, clusterType: 'Late Starter', punctuality: 98,
+                    monthly: [86, 88, 90, 92, 91, 90, 89, 88, 87, 88, 89, 90]
+                }
+            ];
+            // Initialize Fuse.js for fallback data
+            initializeFuseSearch();
+            // Don't render any employee initially
+            hideEmployeeProfile();
+        }
+
+        // Initialize charts only when they need to be shown
+        function initializeChartsIfNeeded() {
+            if (!workHoursChart) {
+                const ctx = document.getElementById('workHoursChart');
+                if (ctx) {
+                    workHoursChart = new Chart(ctx.getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: ['Bay', 'Cafeteria', 'OOO'],
+                            datasets: [{
+                                label: 'Hours',
+                                data: [7.5, 0.5, 1.0],
+                                backgroundColor: [
+                                    '#1565c0',  // Bay - Blue
+                                    '#42a5f5',  // Cafeteria - Light Blue
+                                    '#4caf50'   // OOO - Green
+                                ],
+                                borderColor: [
+                                    'rgba(13, 71, 161, 0.8)',
+                                    'rgba(13, 71, 161, 0.8)',
+                                    'rgba(13, 71, 161, 0.8)'
+                                ],
+                                borderWidth: 2,
+                                borderRadius: 8,
+                                borderSkipped: false
+                            }]
+                        },
+                        options: {
+                            responsive: false,
+                            maintainAspectRatio: false,
+                            aspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                    titleColor: 'white',
+                                    bodyColor: 'white',
+                                    callbacks: {
+                                        label: function(context) {
+                                            return `Hours: ${context.parsed.y.toFixed(2)}`;
+                                        }
+                                    }
+                                },
+                                datalabels: {
+                                    anchor: 'end',
+                                    align: 'top',
+                                    color: '#0d47a1',
+                                    font: {
+                                        weight: 'bold',
+                                        size: 12
+                                    },
+                                    formatter: function(value) {
+                                        return value.toFixed(1);
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: { 
+                                    beginAtZero: true,
+                                    max: 10,
+                                    grid: { 
+                                        display: true, 
+                                        color: 'rgba(21, 101, 192, 0.1)',
+                                        lineWidth: 1
+                                    },
+                                    ticks: {
+                                        color: '#0d47a1',
+                                        font: {
+                                            family: 'Arial'
+                                        }
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: 'Hours',
+                                        color: '#0d47a1',
+                                        font: {
+                                            family: 'Arial',
+                                            size: 14
+                                        }
+                                    }
+                                },
+                                x: { 
+                                    grid: { display: false },
+                                    ticks: {
+                                        color: '#0d47a1',
+                                        font: {
+                                            family: 'Arial'
+                                        }
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: 'Category',
+                                        color: '#0d47a1',
+                                        font: {
+                                            family: 'Arial',
+                                            size: 14
+                                        }
+                                    }
+                                }
+                            },
+                            layout: {
+                                padding: {
+                                    top: 30
+                                }
+                            },
+                            onHover: function(event, elements) {
+                                event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+                            }
+                        },
+                        plugins: [{
+                            afterDatasetsDraw: function(chart) {
+                                const ctx = chart.ctx;
+                                chart.data.datasets.forEach((dataset, i) => {
+                                    const meta = chart.getDatasetMeta(i);
+                                    meta.data.forEach((bar, index) => {
+                                        const data = dataset.data[index];
+                                        ctx.fillStyle = '#0d47a1';
+                                        ctx.font = 'bold 12px Arial';
+                                        ctx.textAlign = 'center';
+                                        ctx.fillText(data.toFixed(1), bar.x, bar.y - 8);
+                                    });
+                                });
+                            }
+                        }]
+                    });
+                }
+            }
+
+            if (!timeDistributionChart) {
+                const pieCtx = document.getElementById('timeDistributionChart');
+                if (pieCtx) {
+                    timeDistributionChart = new Chart(pieCtx.getContext('2d'), {
+                        type: 'polarArea',
+                        data: {
+                            labels: ['Collaboration', 'Focus Time', 'Break Pattern', 'Work Intensity', 'Adaptability'],
+                            datasets: [{
+                                data: [85, 92, 78, 88, 82],
+                                backgroundColor: [
+                                    'rgba(21, 101, 192, 0.7)',    // Collaboration - Blue
+                                    'rgba(76, 175, 80, 0.7)',     // Focus Time - Green
+                                    'rgba(255, 193, 7, 0.7)',     // Break Pattern - Amber
+                                    'rgba(233, 30, 99, 0.7)',     // Work Intensity - Pink
+                                    'rgba(156, 39, 176, 0.7)'     // Adaptability - Purple
+                                ],
+                                borderColor: [
+                                    'rgba(21, 101, 192, 1)',
+                                    'rgba(76, 175, 80, 1)',
+                                    'rgba(255, 193, 7, 1)',
+                                    'rgba(233, 30, 99, 1)',
+                                    'rgba(156, 39, 176, 1)'
+                                ],
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: false,
+                            maintainAspectRatio: false,
+                            aspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: true,
+                                    position: 'right',
+                                    labels: {
+                                        color: '#0d47a1',
+                                        font: {
+                                            family: 'Arial',
+                                            size: 10
+                                        },
+                                        padding: 12,
+                                        usePointStyle: true,
+                                        pointStyle: 'circle'
+                                    }
+                                },
+                                tooltip: {
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                    titleColor: 'white',
+                                    bodyColor: 'white',
+                                    callbacks: {
+                                        label: function(context) {
+                                            return `${context.label}: ${context.parsed.r}%`;
+                                        },
+                                        afterLabel: function(context) {
+                                            const behaviorDescriptions = {
+                                                'Collaboration': 'Team interaction and communication',
+                                                'Focus Time': 'Deep work and concentration periods',
+                                                'Break Pattern': 'Rest and recovery efficiency',
+                                                'Work Intensity': 'Task completion and productivity',
+                                                'Adaptability': 'Flexibility to changing priorities'
+                                            };
+                                            return behaviorDescriptions[context.label] || '';
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                r: {
+                                    beginAtZero: true,
+                                    max: 100,
+                                    ticks: {
+                                        stepSize: 20,
+                                        display: true,
+                                        color: 'rgba(13, 71, 161, 0.6)',
+                                        font: { size: 9 }
+                                    },
+                                    grid: {
+                                        color: 'rgba(13, 71, 161, 0.2)',
+                                        lineWidth: 1
+                                    },
+                                    angleLines: {
+                                        color: 'rgba(13, 71, 161, 0.2)',
+                                        lineWidth: 1
+                                    },
+                                    pointLabels: {
+                                        color: '#0d47a1',
+                                        font: {
+                                            size: 10,
+                                            family: 'Arial'
+                                        }
+                                    }
+                                }
+                            },
+                            layout: {
+                                padding: {
+                                    top: 15,
+                                    bottom: 15,
+                                    left: 15,
+                                    right: 15
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            if (!performanceRadarChart) {
+                const radarCtx = document.getElementById('performanceRadarChart');
+                if (radarCtx) {
+                    performanceRadarChart = new Chart(radarCtx.getContext('2d'), {
+                        type: 'radar',
+                        data: {
+                            labels: ['Efficiency', 'Attendance', 'Punctuality', 'Bay Hours', 'Consistency'],
+                            datasets: [{
+                                label: 'Current',
+                                data: [92, 95, 95, 93, 88],
+                                backgroundColor: 'rgba(13, 71, 161, 0.2)',
+                                borderColor: '#0d47a1',
+                                borderWidth: 2,
+                                pointBackgroundColor: '#0d47a1',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                pointRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                r: {
+                                    beginAtZero: true,
+                                    max: 100,
+                                    ticks: {
+                                        stepSize: 20,
+                                        display: false
+                                    },
+                                    grid: {
+                                        color: 'rgba(0, 0, 0, 0.1)'
+                                    },
+                                    pointLabels: {
+                                        font: {
+                                            size: 10
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Account Comparison Chart
+            if (!accountComparisonChart) {
+                const accountCtx = document.getElementById('accountComparisonChart');
+                if (accountCtx) {
+                    accountComparisonChart = new Chart(accountCtx.getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: ['Office', 'Bay', 'Break'],
+                            datasets: [{
+                                label: 'Employee',
+                                data: [8.0, 7.5, 1.0],
+                                backgroundColor: '#1565c0',
+                                borderColor: 'rgba(13, 71, 161, 0.8)',
+                                borderWidth: 2,
+                                borderRadius: 8,
+                                borderSkipped: false
+                            }, {
+                                label: 'Account Average',
+                                data: [7.8, 7.2, 1.2],
+                                backgroundColor: '#90caf9',
+                                borderColor: 'rgba(144, 202, 249, 0.8)',
+                                borderWidth: 2,
+                                borderRadius: 8,
+                                borderSkipped: false
+                            }]
+                        },
+                        options: {
+                            responsive: false,
+                            maintainAspectRatio: false,
+                            aspectRatio: false,
+                            plugins: {
+                                legend: { 
+                                    display: true,
+                                    position: 'top',
+                                    labels: {
+                                        color: '#0d47a1',
+                                        font: { size: 12 }
+                                    }
+                                },
+                                tooltip: {
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                    titleColor: 'white',
+                                    bodyColor: 'white',
+                                    callbacks: {
+                                        label: function(context) {
+                                            return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} hrs`;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: { 
+                                    beginAtZero: true,
+                                    max: 15,
+                                    grid: { 
+                                        display: true, 
+                                        color: 'rgba(21, 101, 192, 0.1)',
+                                        lineWidth: 1
+                                    },
+                                    ticks: {
+                                        color: '#0d47a1',
+                                        font: { family: 'Arial' }
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: 'Hours',
+                                        color: '#0d47a1',
+                                        font: { family: 'Arial', size: 14 }
+                                    }
+                                },
+                                x: { 
+                                    grid: { display: false },
+                                    ticks: {
+                                        color: '#0d47a1',
+                                        font: { family: 'Arial' }
+                                    }
+                                }
+                            },
+                            layout: { padding: { top: 50, bottom: 20, left: 10, right: 10 } },
+                            onHover: function(event, elements) {
+                                event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+                            }
+                        },
+                        plugins: [{
+                            afterDatasetsDraw: function(chart) {
+                                const ctx = chart.ctx;
+                                chart.data.datasets.forEach((dataset, datasetIndex) => {
+                                    const meta = chart.getDatasetMeta(datasetIndex);
+                                    meta.data.forEach((bar, index) => {
+                                        const data = dataset.data[index];
+                                        ctx.fillStyle = '#0d47a1';
+                                        ctx.font = 'bold 11px Arial';
+                                        ctx.textAlign = 'center';
+                                        ctx.fillText(data.toFixed(1), bar.x, bar.y - 5);
+                                    });
+                                });
+                            }
+                        }]
+                    });
+                }
+            }
+
+            // Designation Comparison Chart
+            if (!designationComparisonChart) {
+                const designationCtx = document.getElementById('designationComparisonChart');
+                if (designationCtx) {
+                    designationComparisonChart = new Chart(designationCtx.getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: ['Office', 'Bay', 'Break'],
+                            datasets: [{
+                                label: 'Employee',
+                                data: [8.0, 7.5, 1.0],
+                                backgroundColor: '#1565c0',
+                                borderColor: 'rgba(13, 71, 161, 0.8)',
+                                borderWidth: 2,
+                                borderRadius: 8,
+                                borderSkipped: false
+                            }, {
+                                label: 'Designation Average',
+                                data: [7.9, 7.3, 1.1],
+                                backgroundColor: '#90caf9',
+                                borderColor: 'rgba(144, 202, 249, 0.8)',
+                                borderWidth: 2,
+                                borderRadius: 8,
+                                borderSkipped: false
+                            }]
+                        },
+                        options: {
+                            responsive: false,
+                            maintainAspectRatio: false,
+                            aspectRatio: false,
+                            plugins: {
+                                legend: { 
+                                    display: true,
+                                    position: 'top',
+                                    labels: {
+                                        color: '#0d47a1',
+                                        font: { size: 12 }
+                                    }
+                                },
+                                tooltip: {
+                                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                    titleColor: 'white',
+                                    bodyColor: 'white',
+                                    callbacks: {
+                                        label: function(context) {
+                                            return `${context.dataset.label}: ${context.parsed.y.toFixed(2)} hrs`;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: { 
+                                    beginAtZero: true,
+                                    max: 15,
+                                    grid: { 
+                                        display: true, 
+                                        color: 'rgba(21, 101, 192, 0.1)',
+                                        lineWidth: 1
+                                    },
+                                    ticks: {
+                                        color: '#0d47a1',
+                                        font: { family: 'Arial' }
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: 'Hours',
+                                        color: '#0d47a1',
+                                        font: { family: 'Arial', size: 14 }
+                                    }
+                                },
+                                x: { 
+                                    grid: { display: false },
+                                    ticks: {
+                                        color: '#0d47a1',
+                                        font: { family: 'Arial' }
+                                    }
+                                }
+                            },
+                            layout: { padding: { top: 50, bottom: 20, left: 10, right: 10 } },
+                            onHover: function(event, elements) {
+                                event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+                            }
+                        },
+                        plugins: [{
+                            afterDatasetsDraw: function(chart) {
+                                const ctx = chart.ctx;
+                                chart.data.datasets.forEach((dataset, datasetIndex) => {
+                                    const meta = chart.getDatasetMeta(datasetIndex);
+                                    meta.data.forEach((bar, index) => {
+                                        const data = dataset.data[index];
+                                        ctx.fillStyle = '#0d47a1';
+                                        ctx.font = 'bold 11px Arial';
+                                        ctx.textAlign = 'center';
+                                        ctx.fillText(data.toFixed(1), bar.x, bar.y - 5);
+                                    });
+                                });
+                            }
+                        }]
+                    });
+                }
+            }
+        }
+
+        function renderEmployee(emp) {
+            if (!emp) return;
+            
+            // Store current employee for refresh functionality
+            currentEmployee = emp;
+            
+            // Hide default message and show employee sections
+            document.getElementById('noEmployeeMessage').style.display = 'none';
+            document.getElementById('profileSection').style.display = 'block';
+            document.getElementById('performanceSection').style.display = 'block';
+
+            
+            // Initialize charts if not already done
+            setTimeout(() => {
+                initializeChartsIfNeeded();
+            }, 100);
+            
+            // Update employee information
+            document.getElementById('empName').textContent = emp.name;
+            document.getElementById('empDesignation').textContent = emp.designation;
+            document.getElementById('empId').textContent = `ID: ${emp.id}`;
+            document.getElementById('metricEfficiency').textContent = `${emp.efficiency}%`;
+            document.getElementById('metricAttendance').textContent = `${emp.attendance}%`;
+            document.getElementById('metricBayHours').textContent = `${emp.bayHours} hrs`;
+            document.getElementById('empScore').textContent = emp.score;
+            
+            // Update profile quick stats
+            const profileAttendanceEl = document.getElementById('profileAttendance');
+            const profileDesignationEl = document.getElementById('profileDesignation');
+            const profileAccountEl = document.getElementById('profileAccount');
+            
+            if (profileAttendanceEl) {
+                const daysWorked = Math.round((emp.attendance / 100) * 23);
+                profileAttendanceEl.textContent = `${daysWorked}/23 days`;
+            }
+            
+            if (profileDesignationEl) {
+                profileDesignationEl.textContent = emp.designation || 'Not Specified';
+            }
+            
+            if (profileAccountEl) {
+                profileAccountEl.textContent = emp.accountCode || 'Not Assigned';
+            }
+
+            // Update cluster matrix highlighting based on behavior type
+            document.querySelectorAll('.cluster-box').forEach(box => {
+                box.classList.remove('active');
+            });
+            const activeCluster = document.querySelector(`.cluster-box[data-cluster="${emp.cluster}"]`);
+            if (activeCluster) {
+                activeCluster.classList.add('active');
+            }
+
+            const trend = document.getElementById('empTrend');
+            trend.classList.remove('positive');
+            trend.classList.remove('negative');
+            if (emp.trend >= 0) {
+                trend.classList.add('positive');
+                trend.innerHTML = `<i class="fas fa-arrow-up"></i> <span class="trend-text">+${emp.trend}%</span>`;
+            } else {
+                trend.classList.add('negative');
+                trend.innerHTML = `<i class="fas fa-arrow-down"></i> <span class="trend-text">${emp.trend}%</span>`;
+            }
+
+            // Update charts after a small delay to ensure charts are initialized
+            setTimeout(() => {
+                if (workHoursChart) {
+                    const bayHours = emp.bayHours || 7.5;
+                    const cafeteriaHours = emp.cafeteriaHours || 0.5;
+                    const oooHours = emp.oooHours || 1.0;
+                    
+                    workHoursChart.data.datasets[0].data = [bayHours, cafeteriaHours, oooHours];
+                    workHoursChart.update();
+                }
+
+                if (timeDistributionChart) {
+                    // Calculate behavioral metrics based on employee data
+                    const collaboration = Math.min(100, Math.round(85 + (emp.efficiency - 85) * 0.3 + Math.random() * 10 - 5));
+                    const focusTime = Math.min(100, Math.round(emp.efficiency + Math.random() * 8 - 4));
+                    const breakPattern = Math.min(100, Math.round(78 + (emp.attendance - 90) * 0.5 + Math.random() * 10 - 5));
+                    const workIntensity = Math.min(100, Math.round((emp.bayHours / 8) * 100 + Math.random() * 8 - 4));
+                    const adaptability = Math.min(100, Math.round(82 + (emp.score - 85) * 0.4 + Math.random() * 10 - 5));
+                    
+                    timeDistributionChart.data.datasets[0].data = [collaboration, focusTime, breakPattern, workIntensity, adaptability];
+                    timeDistributionChart.update();
+                }
+
+                // Update Performance Radar Chart
+                if (performanceRadarChart) {
+                    const bayHoursPercent = Math.round((emp.bayHours / 8) * 100);
+                    const consistency = Math.round(emp.monthly ? emp.monthly.reduce((a, b) => a + b) / emp.monthly.length : 85);
+                    performanceRadarChart.data.datasets[0].data = [
+                        emp.efficiency,
+                        emp.attendance,
+                        emp.punctuality,
+                        bayHoursPercent,
+                        consistency
+                    ];
+                    performanceRadarChart.update();
+                }
+
+                // Update Account Comparison Chart
+                if (accountComparisonChart) {
+                    const employeeData = [emp.officeHours || 8.0, emp.bayHours || 7.5, emp.breakHours || 1.0];
+                    
+                    // Calculate account averages (mock data for now - would come from API in real implementation)
+                    const accountAvgData = [
+                        (emp.officeHours || 8.0) * 0.95 + Math.random() * 0.4 - 0.2, // Account avg office hours
+                        (emp.bayHours || 7.5) * 0.93 + Math.random() * 0.4 - 0.2,     // Account avg bay hours
+                        (emp.breakHours || 1.0) * 1.1 + Math.random() * 0.3 - 0.15    // Account avg break hours
+                    ];
+                    
+                    accountComparisonChart.data.datasets[0].data = employeeData;
+                    accountComparisonChart.data.datasets[1].data = accountAvgData;
+                    accountComparisonChart.update();
+                }
+
+                // Update Designation Comparison Chart
+                if (designationComparisonChart) {
+                    const employeeData = [emp.officeHours || 8.0, emp.bayHours || 7.5, emp.breakHours || 1.0];
+                    
+                    // Calculate designation averages (mock data for now - would come from API in real implementation)
+                    const designationAvgData = [
+                        (emp.officeHours || 8.0) * 0.97 + Math.random() * 0.3 - 0.15, // Designation avg office hours
+                        (emp.bayHours || 7.5) * 0.95 + Math.random() * 0.3 - 0.15,     // Designation avg bay hours
+                        (emp.breakHours || 1.0) * 1.05 + Math.random() * 0.2 - 0.1     // Designation avg break hours
+                    ];
+                    
+                    designationComparisonChart.data.datasets[0].data = employeeData;
+                    designationComparisonChart.data.datasets[1].data = designationAvgData;
+                    designationComparisonChart.update();
+                }
+                
+                // Load personalized recommendations for this employee
+                loadPersonalizedRecommendations(emp);
+                
+            }, 200);
+        }
+
+        // Function to load personalized recommendations
+        async function loadPersonalizedRecommendations(employee) {
+            const loadingDiv = document.getElementById('recommendationsLoading');
+            const listDiv = document.getElementById('recommendationsList');
+            const errorDiv = document.getElementById('recommendationsError');
+            
+            // Show loading state
+            loadingDiv.style.display = 'block';
+            listDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+            
+            try {
+                // Try to get recommendations from API first (Gemini or backend)
+                const response = await fetch(`/api/recommendations/${employee.id}`);
+                
+                if (response.ok) {
+                    const recommendations = await response.json();
+                    displayRecommendations(recommendations);
+                } else {
+                    // Fallback to intelligent rule-based recommendations
+                    const recommendations = generateIntelligentRecommendations(employee);
+                    displayRecommendations(recommendations);
+                }
+                
+            } catch (error) {
+                console.error('Error loading recommendations:', error);
+                // Fallback to intelligent rule-based recommendations
+                const recommendations = generateIntelligentRecommendations(employee);
+                displayRecommendations(recommendations);
+            }
+        }
+        
+        // Function to generate intelligent recommendations based on employee data
+        function generateIntelligentRecommendations(emp) {
+            const recommendations = [];
+            
+            // Analyze efficiency and suggest improvements
+            if (emp.efficiency < 70) {
+                recommendations.push({
+                    icon: 'fas fa-chart-line',
+                    title: 'Performance Enhancement',
+                    description: `Current efficiency is ${emp.efficiency}%. Consider skills training, workflow optimization, or task prioritization techniques to boost productivity.`,
+                    priority: 'high'
+                });
+            } else if (emp.efficiency < 85) {
+                recommendations.push({
+                    icon: 'fas fa-target',
+                    title: 'Performance Optimization',
+                    description: `Good efficiency at ${emp.efficiency}%. Focus on advanced techniques like time-blocking and automation to reach peak performance.`,
+                    priority: 'medium'
+                });
+            } else {
+                recommendations.push({
+                    icon: 'fas fa-trophy',
+                    title: 'Excellence Maintenance',
+                    description: `Excellent efficiency at ${emp.efficiency}%! Consider mentoring others and taking on leadership challenges.`,
+                    priority: 'low'
+                });
+            }
+            
+            // Analyze attendance patterns
+            if (emp.attendance < 85) {
+                recommendations.push({
+                    icon: 'fas fa-calendar-check',
+                    title: 'Attendance Improvement',
+                    description: `Attendance at ${emp.attendance}% needs attention. Consider flexible scheduling, health support, or addressing personal challenges.`,
+                    priority: 'high'
+                });
+            } else if (emp.attendance < 95) {
+                recommendations.push({
+                    icon: 'fas fa-user-clock',
+                    title: 'Consistency Building',
+                    description: `Good attendance at ${emp.attendance}%. Implement routine optimization and contingency planning for better consistency.`,
+                    priority: 'medium'
+                });
+            }
+            
+            // Analyze work hours distribution
+            if (emp.bayHours < 6) {
+                recommendations.push({
+                    icon: 'fas fa-building',
+                    title: 'Office Engagement',
+                    description: `Low office hours (${emp.bayHours}hrs). Consider increasing collaborative work time and team participation.`,
+                    priority: 'medium'
+                });
+            } else if (emp.bayHours > 9) {
+                recommendations.push({
+                    icon: 'fas fa-balance-scale',
+                    title: 'Work-Life Balance',
+                    description: `High office hours (${emp.bayHours}hrs). Focus on time management and ensure adequate rest to prevent burnout.`,
+                    priority: 'high'
+                });
+            }
+            
+            // Behavioral cluster-based recommendations
+            switch (emp.clusterType) {
+                case 'Silent Overworker':
+                    recommendations.push({
+                        icon: 'fas fa-users',
+                        title: 'Team Collaboration',
+                        description: 'Increase team communication and seek support when needed. Your hard work is valuable - make it visible!',
+                        priority: 'medium'
+                    });
+                    break;
+                case 'Late Starter':
+                    recommendations.push({
+                        icon: 'fas fa-clock',
+                        title: 'Morning Routine',
+                        description: 'Develop consistent morning routines and time management strategies to improve early-day productivity.',
+                        priority: 'medium'
+                    });
+                    break;
+                case 'At Risk':
+                    recommendations.push({
+                        icon: 'fas fa-life-ring',
+                        title: 'Support & Resources',
+                        description: 'Access available support resources, consider workload adjustment, and discuss challenges with your manager.',
+                        priority: 'high'
+                    });
+                    break;
+                case 'Consistent Performer':
+                    recommendations.push({
+                        icon: 'fas fa-star',
+                        title: 'Leadership Development',
+                        description: 'Your consistency is excellent! Consider taking on mentorship roles or leading special projects.',
+                        priority: 'low'
+                    });
+                    break;
+            }
+            
+            // Designation-specific recommendations
+            if (emp.designation.includes('Senior') || emp.designation.includes('AL')) {
+                recommendations.push({
+                    icon: 'fas fa-graduation-cap',
+                    title: 'Mentorship Opportunities',
+                    description: 'Share your expertise by mentoring junior team members and contributing to knowledge sharing initiatives.',
+                    priority: 'low'
+                });
+            } else {
+                recommendations.push({
+                    icon: 'fas fa-book',
+                    title: 'Skill Development',
+                    description: 'Explore advanced technical certifications and cross-functional training opportunities for career growth.',
+                    priority: 'medium'
+                });
+            }
+            
+            // Sort by priority (high, medium, low) and return top 4
+            const priorityOrder = { high: 3, medium: 2, low: 1 };
+            recommendations.sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]);
+            
+            return recommendations.slice(0, 4);
+        }
+        
+        // Function to display recommendations in the HTML
+        function displayRecommendations(recommendations) {
+            const loadingDiv = document.getElementById('recommendationsLoading');
+            const listDiv = document.getElementById('recommendationsList');
+            const errorDiv = document.getElementById('recommendationsError');
+            
+            loadingDiv.style.display = 'none';
+            errorDiv.style.display = 'none';
+            
+            if (recommendations && recommendations.length > 0) {
+                listDiv.innerHTML = '';
+                
+                recommendations.forEach(rec => {
+                    const priorityColor = rec.priority === 'high' ? '#dc3545' : 
+                                        rec.priority === 'medium' ? '#fd7e14' : '#28a745';
+                    
+                    const recElement = document.createElement('div');
+                    recElement.className = 'recommendation-item';
+                    recElement.style.borderLeft = `4px solid ${priorityColor}`;
+                    
+                    recElement.innerHTML = `
+                        <div class="recommendation-icon">
+                            <i class="${rec.icon}" style="color: ${priorityColor};"></i>
+                        </div>
+                        <div class="recommendation-content">
+                            <h6>${rec.title}</h6>
+                            <p>${rec.description}</p>
+                        </div>
+                    `;
+                    
+                    listDiv.appendChild(recElement);
+                });
+                
+                listDiv.style.display = 'block';
+            } else {
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        function hideEmployeeProfile() {
+            // Show default message and hide employee sections
+            document.getElementById('noEmployeeMessage').style.display = 'block';
+            document.getElementById('profileSection').style.display = 'none';
+            document.getElementById('performanceSection').style.display = 'none';
+        }
+
+        // Initialize Fuse.js for fuzzy search
+        function initializeFuseSearch() {
+            if (employees && employees.length > 0) {
+                const fuseOptions = {
+                    keys: [
+                        { name: 'name', weight: 0.6 },
+                        { name: 'id', weight: 0.3 },
+                        { name: 'designation', weight: 0.1 }
+                    ],
+                    threshold: 0.3, // More lenient matching
+                    distance: 100,
+                    includeScore: true,
+                    includeMatches: true,
+                    minMatchCharLength: 1
+                };
+                fuse = new Fuse(employees, fuseOptions);
+                console.log('Fuse.js initialized with', employees.length, 'employees');
+            }
+        }
+
+        // Perform fuzzy search and show autocomplete results
+        function performFuzzySearch(query) {
+            if (!fuse || !query || query.trim().length < 1) {
+                hideAutocomplete();
+                return;
+            }
+
+            const results = fuse.search(query.trim());
+            showAutocompleteResults(results, query.trim());
+        }
+
+        // Show autocomplete dropdown with results
+        function showAutocompleteResults(results, query) {
+            let dropdown = document.getElementById('autocompleteDropdown');
+            const input = document.getElementById('employeeSearchInput');
+            
+            // If dropdown doesn't exist or is not attached to body, create/move it
+            if (!dropdown || dropdown.parentElement !== document.body) {
+                // Remove existing dropdown if it exists
+                if (dropdown) {
+                    dropdown.remove();
+                }
+                
+                // Create new dropdown attached to body
+                dropdown = document.createElement('div');
+                dropdown.id = 'autocompleteDropdown';
+                dropdown.className = 'autocomplete-dropdown';
+                document.body.appendChild(dropdown);
+            }
+            
+            // Position the dropdown relative to the input field
+            positionDropdown(dropdown, input);
+            
+            if (!results || results.length === 0) {
+                dropdown.innerHTML = '<div class="no-results">No employees found matching "' + query + '"</div>';
+                dropdown.style.display = 'block';
+                return;
+            }
+
+            // Limit to top 8 results for performance
+            const limitedResults = results.slice(0, 8);
+            
+            dropdown.innerHTML = '';
+            selectedIndex = -1;
+
+            limitedResults.forEach((result, index) => {
+                const employee = result.item;
+                const matches = result.matches || [];
+                
+                const item = document.createElement('div');
+                item.className = 'autocomplete-item';
+                item.dataset.index = index;
+                item.dataset.employeeId = employee.id;
+
+                // Highlight matches in name
+                let displayName = employee.name;
+                let displayId = employee.id;
+                
+                matches.forEach(match => {
+                    if (match.key === 'name') {
+                        displayName = highlightMatches(employee.name, match.indices);
+                    } else if (match.key === 'id') {
+                        displayId = highlightMatches(employee.id, match.indices);
+                    }
+                });
+
+                item.innerHTML = `
+                    <div class="autocomplete-name">${displayName}</div>
+                    <div class="autocomplete-details">
+                        ID: ${displayId} • ${employee.designation} • Account: ${employee.accountCode || 'Not Assigned'}
+                    </div>
+                `;
+
+                // Add mouse events
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    selectEmployee(employee);
+                });
+
+                item.addEventListener('mouseenter', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Update selected index when hovering
+                    selectedIndex = parseInt(e.target.dataset.index);
+                    updateAutocompleteHighlight(dropdown.querySelectorAll('.autocomplete-item'));
+                });
+
+                item.addEventListener('mouseleave', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+
+                dropdown.appendChild(item);
+            });
+
+            dropdown.style.display = 'block';
+        }
+
+        // Highlight matching text
+        function highlightMatches(text, indices) {
+            if (!indices || indices.length === 0) return text;
+            
+            let result = '';
+            let lastIndex = 0;
+            
+            indices.forEach(([start, end]) => {
+                result += text.substring(lastIndex, start);
+                result += '<span class="autocomplete-match">' + text.substring(start, end + 1) + '</span>';
+                lastIndex = end + 1;
+            });
+            
+            result += text.substring(lastIndex);
+            return result;
+        }
+
+        // Position dropdown relative to input field
+        function positionDropdown(dropdown, input) {
+            if (isPositioning) return;
+            isPositioning = true;
+            
+            requestAnimationFrame(() => {
+                const rect = input.getBoundingClientRect();
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                
+                dropdown.style.top = (rect.bottom + scrollTop) + 'px';
+                dropdown.style.left = (rect.left + scrollLeft) + 'px';
+                dropdown.style.width = rect.width + 'px';
+                
+                isPositioning = false;
+            });
+        }
+
+        // Hide autocomplete dropdown
+        function hideAutocomplete() {
+            const dropdown = document.getElementById('autocompleteDropdown');
+            if (dropdown) {
+                dropdown.style.display = 'none';
+            }
+            selectedIndex = -1;
+        }
+
+        // Select an employee from autocomplete
+        function selectEmployee(employee) {
+            const input = document.getElementById('employeeSearchInput');
+            const status = document.getElementById('searchStatus');
+            
+            input.value = `${employee.name} (${employee.id})`;
+            hideAutocomplete();
+            
+            // Render the selected employee
+            renderEmployee(employee);
+            status.textContent = `Selected: ${employee.name} (${employee.id})`;
+            
+            // Scroll to profile section
+            setTimeout(() => {
+                const profileSection = document.getElementById('profileSection');
+                if (profileSection) {
+                    profileSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 200);
+        }
+
+        // Handle keyboard navigation in autocomplete
+        function handleAutocompleteNavigation(event) {
+            const dropdown = document.getElementById('autocompleteDropdown');
+            if (!dropdown) return;
+            
+            const items = dropdown.querySelectorAll('.autocomplete-item');
+            if (!items.length) return;
+
+            switch (event.key) {
+                case 'ArrowDown':
+                    event.preventDefault();
+                    selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                    updateAutocompleteHighlight(items);
+                    break;
+                    
+                case 'ArrowUp':
+                    event.preventDefault();
+                    selectedIndex = Math.max(selectedIndex - 1, -1);
+                    updateAutocompleteHighlight(items);
+                    break;
+                    
+                case 'Enter':
+                    event.preventDefault();
+                    if (selectedIndex >= 0 && items[selectedIndex]) {
+                        const employeeId = items[selectedIndex].dataset.employeeId;
+                        const employee = employees.find(emp => emp.id === employeeId);
+                        if (employee) {
+                            selectEmployee(employee);
+                        }
+                    }
+                    break;
+                    
+                case 'Escape':
+                    hideAutocomplete();
+                    break;
+            }
+        }
+
+        // Update visual highlight for keyboard navigation
+        function updateAutocompleteHighlight(items) {
+            items.forEach((item, index) => {
+                item.classList.toggle('highlighted', index === selectedIndex);
+            });
+            
+            // Scroll highlighted item into view
+            if (selectedIndex >= 0 && items[selectedIndex]) {
+                items[selectedIndex].scrollIntoView({
+                    block: 'nearest',
+                    behavior: 'smooth'
+                });
+            }
+        }
+
+        // Default render
+        renderEmployee(employees[0]);
+
+        // Enhanced search handling with fuzzy search and autocomplete
+        const form = document.getElementById('employeeSearchForm');
+        const input = document.getElementById('employeeSearchInput');
+        const status = document.getElementById('searchStatus');
+        let searchTimeout = null;
+
+        // Input event for real-time autocomplete with debouncing
+        input.addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+            
+            if (query.length >= 1) {
+                status.textContent = `Searching for "${query}"...`;
+                
+                // Debounce the search to prevent flickering
+                searchTimeout = setTimeout(() => {
+                    performFuzzySearch(query);
+                }, 150);
+            } else {
+                hideAutocomplete();
+                status.textContent = '';
+            }
+        });
+
+        // Keyboard navigation for autocomplete
+        input.addEventListener('keydown', handleAutocompleteNavigation);
+
+        // Hide autocomplete when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.autocomplete-container') && !e.target.closest('.autocomplete-dropdown')) {
+                hideAutocomplete();
+            }
+        });
+
+        // Show autocomplete when input is focused and has value
+        input.addEventListener('focus', () => {
+            const query = input.value.trim();
+            if (query.length >= 1) {
+                performFuzzySearch(query);
+            }
+        });
+
+        // Throttled reposition dropdown on window resize or scroll
+        let resizeTimeout = null;
+        let scrollTimeout = null;
+
+        window.addEventListener('resize', () => {
+            if (resizeTimeout) clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                const dropdown = document.getElementById('autocompleteDropdown');
+                if (dropdown && dropdown.style.display === 'block') {
+                    positionDropdown(dropdown, input);
+                }
+            }, 100);
+        });
+
+        window.addEventListener('scroll', () => {
+            if (scrollTimeout) clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                const dropdown = document.getElementById('autocompleteDropdown');
+                if (dropdown && dropdown.style.display === 'block') {
+                    positionDropdown(dropdown, input);
+                }
+            }, 50);
+        }, { passive: true });
+
+        // Form submission (existing functionality enhanced)
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const q = input.value.trim();
+            if (!q) { 
+                status.textContent = 'Enter an employee ID or name to search.'; 
+                return; 
+            }
+
+            hideAutocomplete();
+            status.textContent = 'Searching...';
+            
+            // First try fuzzy search for immediate results
+            if (fuse) {
+                const fuseResults = fuse.search(q);
+                if (fuseResults.length > 0) {
+                    const emp = fuseResults[0].item;
+                    renderEmployee(emp);
+                    status.textContent = `Showing results for "${emp.name}" (${emp.id})`;
+                    input.value = `${emp.name} (${emp.id})`;
+                    return;
+                }
+            }
+            
+            // Fallback to API search
+            try {
+                const response = await fetch(`/api/search_employee?q=${encodeURIComponent(q)}`);
+                if (response.ok) {
+                    const results = await response.json();
+                    if (results.length > 0) {
+                        const emp = results[0]; // Take first match
+                        renderEmployee(emp);
+                        status.textContent = `Showing results for "${emp.name}" (${emp.id})`;
+                        input.value = `${emp.name} (${emp.id})`;
+                    } else {
+                        status.textContent = 'No matching employee found.';
+                    }
+                } else {
+                    status.textContent = 'Error searching for employee.';
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+                status.textContent = 'No matching employee found.';
+            }
+        });
+
+
+
+
+
+
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Load employee data first
+            await loadEmployeeData();
+            
+            // Check if there's a selected employee from dashboard redirect
+            checkForRedirectedEmployee();
+        });
+
+        // Check for redirected employee from dashboard
+        function checkForRedirectedEmployee() {
+            const selectedEmployeeData = localStorage.getItem('selectedEmployee');
+            if (selectedEmployeeData) {
+                try {
+                    const employeeInfo = JSON.parse(selectedEmployeeData);
+                    
+                    // Auto-fill the search input and trigger search
+                    const searchInput = document.getElementById('employeeSearchInput');
+                    const searchStatus = document.getElementById('searchStatus');
+                    
+                    if (searchInput) {
+                        searchInput.value = employeeInfo.id;
+                        searchStatus.textContent = `Auto-searching for employee: ${employeeInfo.name} (${employeeInfo.id})`;
+                        
+                        // Trigger the search after a short delay
+                        setTimeout(() => {
+                            searchForEmployee(employeeInfo.id);
+                        }, 500);
+                    }
+                    
+                    // Clear the stored data
+                    localStorage.removeItem('selectedEmployee');
+                    
+                } catch (error) {
+                    console.error('Error parsing selected employee data:', error);
+                }
+            }
+        }
+
+        // Enhanced search function that can be called programmatically
+        async function searchForEmployee(query) {
+            const status = document.getElementById('searchStatus');
+            const input = document.getElementById('employeeSearchInput');
+            
+            status.textContent = 'Searching...';
+            hideAutocomplete();
+            
+            // First try fuzzy search for immediate results
+            if (fuse) {
+                const fuseResults = fuse.search(query);
+                if (fuseResults.length > 0) {
+                    const emp = fuseResults[0].item;
+                    renderEmployee(emp);
+                    status.textContent = `Found and displaying: ${emp.name} (${emp.id})`;
+                    input.value = `${emp.name} (${emp.id})`;
+                    
+                    // Scroll to the profile section
+                    setTimeout(() => {
+                        const profileSection = document.getElementById('profileSection');
+                        if (profileSection) {
+                            profileSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }, 200);
+                    return;
+                }
+            }
+            
+            // Fallback to API search
+            try {
+                const response = await fetch(`/api/search_employee?q=${encodeURIComponent(query)}`);
+                if (response.ok) {
+                    const results = await response.json();
+                    if (results.length > 0) {
+                        const emp = results[0];
+                        renderEmployee(emp);
+                        status.textContent = `Found and displaying: ${emp.name} (${emp.id})`;
+                        input.value = `${emp.name} (${emp.id})`;
+                        
+                        // Scroll to the profile section
+                        setTimeout(() => {
+                            const profileSection = document.getElementById('profileSection');
+                            if (profileSection) {
+                                profileSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        }, 200);
+                    } else {
+                        status.textContent = 'Employee not found in system.';
+                    }
+                } else {
+                    status.textContent = 'Error searching for employee.';
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+                status.textContent = 'Employee not found in available data.';
+            }
+        }
+        
+        // Add event listener for refresh recommendations button
+        document.addEventListener('DOMContentLoaded', function() {
+            const refreshBtn = document.getElementById('refreshRecommendations');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', function() {
+                    if (currentEmployee) {
+                        loadPersonalizedRecommendations(currentEmployee);
+                    }
+                });
+            }
+        });
+
+        // PDF Report Generation Function
+        async function downloadEmployeeReport() {
+            if (!currentEmployee) {
+                alert('Please select an employee first to generate a report.');
+                return;
+            }
+
+            // Show loading state
+            const btn = document.getElementById('downloadReportBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating PDF...';
+            btn.disabled = true;
+
+            try {
+                // Initialize jsPDF
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pageWidth = pdf.internal.pageSize.getWidth();
+                const pageHeight = pdf.internal.pageSize.getHeight();
+                let yPosition = 20;
+
+                // Add title and employee info
+                pdf.setFontSize(20);
+                pdf.setFont(undefined, 'bold');
+                pdf.text('Employee Performance Report', pageWidth / 2, yPosition, { align: 'center' });
+                
+                yPosition += 15;
+                pdf.setFontSize(14);
+                pdf.setFont(undefined, 'normal');
+                pdf.text(`Employee: ${currentEmployee.name}`, 20, yPosition);
+                yPosition += 7;
+                pdf.text(`ID: ${currentEmployee.id}`, 20, yPosition);
+                yPosition += 7;
+                pdf.text(`Designation: ${currentEmployee.designation}`, 20, yPosition);
+                yPosition += 7;
+                pdf.text(`Account Code: ${currentEmployee.accountCode || 'Not Assigned'}`, 20, yPosition);
+                yPosition += 7;
+                pdf.text(`Report Generated: ${new Date().toLocaleDateString()}`, 20, yPosition);
+                yPosition += 15;
+
+                // Add key metrics section
+                pdf.setFontSize(16);
+                pdf.setFont(undefined, 'bold');
+                pdf.text('Key Performance Metrics', 20, yPosition);
+                yPosition += 10;
+                
+                pdf.setFontSize(12);
+                pdf.setFont(undefined, 'normal');
+                pdf.text(`Efficiency: ${currentEmployee.efficiency}%`, 20, yPosition);
+                pdf.text(`Attendance: ${currentEmployee.attendance}%`, 100, yPosition);
+                yPosition += 7;
+                pdf.text(`Bay Hours: ${currentEmployee.bayHours} hrs`, 20, yPosition);
+                pdf.text(`Behavior Type: ${currentEmployee.clusterType}`, 100, yPosition);
+                yPosition += 15;
+
+                // Capture and add profile section
+                const profileSection = document.getElementById('profileSection');
+                if (profileSection && profileSection.style.display !== 'none') {
+                    try {
+                        const profileCanvas = await html2canvas(profileSection, {
+                            backgroundColor: '#ffffff',
+                            scale: 2,
+                            logging: false,
+                            useCORS: true
+                        });
+                        
+                        const profileImgData = profileCanvas.toDataURL('image/jpeg', 0.8);
+                        const profileImgWidth = 80;
+                        const profileImgHeight = (profileCanvas.height * profileImgWidth) / profileCanvas.width;
+                        
+                        if (yPosition + profileImgHeight > pageHeight - 20) {
+                            pdf.addPage();
+                            yPosition = 20;
+                        }
+                        
+                        pdf.setFontSize(16);
+                        pdf.setFont(undefined, 'bold');
+                        pdf.text('Employee Profile', 20, yPosition);
+                        yPosition += 10;
+                        
+                        pdf.addImage(profileImgData, 'JPEG', 20, yPosition, profileImgWidth, profileImgHeight);
+                        yPosition += profileImgHeight + 15;
+                    } catch (error) {
+                        console.error('Error capturing profile section:', error);
+                    }
+                }
+
+                // Capture and add charts
+                const chartElements = [
+                    { id: 'workHoursChart', title: 'Work Hours Distribution' },
+                    { id: 'timeDistributionChart', title: 'Employee Behavior Analysis' },
+                    { id: 'performanceRadarChart', title: 'Performance Radar' },
+                    { id: 'accountComparisonChart', title: 'Account Comparison' },
+                    { id: 'designationComparisonChart', title: 'Designation Comparison' }
+                ];
+
+                for (const chart of chartElements) {
+                    const canvas = document.getElementById(chart.id);
+                    if (canvas) {
+                        try {
+                            // Check if we need a new page
+                            if (yPosition + 80 > pageHeight - 20) {
+                                pdf.addPage();
+                                yPosition = 20;
+                            }
+
+                            pdf.setFontSize(14);
+                            pdf.setFont(undefined, 'bold');
+                            pdf.text(chart.title, 20, yPosition);
+                            yPosition += 10;
+
+                            const chartImgData = canvas.toDataURL('image/jpeg', 0.8);
+                            const imgWidth = 160;
+                            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                            
+                            pdf.addImage(chartImgData, 'JPEG', 25, yPosition, imgWidth, imgHeight);
+                            yPosition += imgHeight + 15;
+                        } catch (error) {
+                            console.error(`Error capturing ${chart.title}:`, error);
+                        }
+                    }
+                }
+
+                // Add recommendations section
+                const recommendationsList = document.getElementById('recommendationsList');
+                if (recommendationsList && recommendationsList.style.display !== 'none') {
+                    // Check if we need a new page
+                    if (yPosition + 40 > pageHeight - 20) {
+                        pdf.addPage();
+                        yPosition = 20;
+                    }
+
+                    pdf.setFontSize(16);
+                    pdf.setFont(undefined, 'bold');
+                    pdf.text('Personalized Recommendations', 20, yPosition);
+                    yPosition += 15;
+
+                    // Extract recommendation text
+                    const recommendations = recommendationsList.querySelectorAll('.recommendation-item');
+                    recommendations.forEach((rec, index) => {
+                        const title = rec.querySelector('.recommendation-content h6')?.textContent || '';
+                        const description = rec.querySelector('.recommendation-content p')?.textContent || '';
+                        
+                        // Check if we need a new page
+                        if (yPosition + 25 > pageHeight - 20) {
+                            pdf.addPage();
+                            yPosition = 20;
+                        }
+
+                        pdf.setFontSize(12);
+                        pdf.setFont(undefined, 'bold');
+                        pdf.text(`${index + 1}. ${title}`, 20, yPosition);
+                        yPosition += 7;
+                        
+                        pdf.setFont(undefined, 'normal');
+                        const splitDescription = pdf.splitTextToSize(description, pageWidth - 40);
+                        pdf.text(splitDescription, 20, yPosition);
+                        yPosition += splitDescription.length * 5 + 10;
+                    });
+                }
+
+                // Add footer with generation info
+                const totalPages = pdf.internal.getNumberOfPages();
+                for (let i = 1; i <= totalPages; i++) {
+                    pdf.setPage(i);
+                    pdf.setFontSize(8);
+                    pdf.setFont(undefined, 'normal');
+                    pdf.text(`Page ${i} of ${totalPages}`, pageWidth - 30, pageHeight - 10);
+                    pdf.text('Generated by Attendance Analyzer', 20, pageHeight - 10);
+                }
+
+                // Download the PDF
+                const fileName = `Employee_Report_${currentEmployee.name.replace(/\s+/g, '_')}_${currentEmployee.id}_${new Date().toISOString().split('T')[0]}.pdf`;
+                pdf.save(fileName);
+
+                // Show success message
+                alert('Employee report downloaded successfully!');
+
+            } catch (error) {
+                console.error('Error generating PDF:', error);
+                alert('Error generating PDF report. Please try again.');
+            } finally {
+                // Restore button state
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Helper function to ensure charts are visible for capture
+        function ensureChartsVisible() {
+            return new Promise((resolve) => {
+                // Small delay to ensure all charts are rendered
+                setTimeout(() => {
+                    // Trigger chart updates to ensure they're rendered
+                    if (workHoursChart) workHoursChart.update();
+                    if (timeDistributionChart) timeDistributionChart.update();
+                    if (performanceRadarChart) performanceRadarChart.update();
+                    if (accountComparisonChart) accountComparisonChart.update();
+                    if (designationComparisonChart) designationComparisonChart.update();
+                    
+                    // Another small delay after updates
+                    setTimeout(resolve, 500);
+                }, 200);
+            });
+        }
+    </script>
+</body>
+</html>
